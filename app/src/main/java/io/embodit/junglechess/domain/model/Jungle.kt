@@ -178,7 +178,7 @@ data class Move(val from: Int, val to: Int, val piece: Int, val captured: Int = 
     fun notation(): String = "${Pieces.animal(piece).letter} ${Sq.name(from)}${if (captured >= 0) "x" else "-"}${Sq.name(to)}"
 }
 
-enum class WinReason { DEN, ALL_CAPTURED, NO_MOVES, RESIGN }
+enum class WinReason { DEN, ALL_CAPTURED, NO_MOVES, RESIGN, REPETITION }
 
 sealed interface GameStatus {
     data object Ongoing : GameStatus

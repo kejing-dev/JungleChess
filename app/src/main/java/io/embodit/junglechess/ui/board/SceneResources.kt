@@ -43,6 +43,8 @@ internal class SceneResources private constructor() {
     lateinit var markRing: MeshResource
     lateinit var markCross: MeshResource
     lateinit var denPlateMesh: MeshResource
+    lateinit var tagMesh: MeshResource
+    val rankTags = HashMap<Int, Material>()
     lateinit var filesMesh: MeshResource
     lateinit var ranksMesh: MeshResource
 
@@ -124,7 +126,9 @@ internal class SceneResources private constructor() {
                 async(Dispatchers.IO) { MeshResource.createPlane(0.034f, 0.0125f, 0f) },
                 async(Dispatchers.IO) { MeshResource.createPlane(0.42f, 0.03f, 0f) },
                 async(Dispatchers.IO) { MeshResource.createPlane(0.03f, 0.54f, 0f) },
+                async(Dispatchers.IO) { MeshResource.createPlane(BoardLayout.TAG_W, BoardLayout.TAG_H, 0.002f) },
             )
+            val tagJobs = (0 until Pieces.COUNT).map { id -> id to async(Dispatchers.IO) { TextureResource.create(BoardTextures.rankTag(id)) } }
             val shapeJob = async(Dispatchers.IO) {
                 val pad = ShapeResource.createBox(Vector3(0.056f, 0.004f, 0.056f))
                 val pieces = Animal.entries.associateWith { a ->
@@ -142,6 +146,14 @@ internal class SceneResources private constructor() {
             r.padShape = pad.keep()
             shapes.forEach { (a, s) -> r.pieceShape[a] = s.keep() }
             r.physics = PhysicsMaterialResource().keep()
+            r.tagMesh = m[7].keep()
+            for ((id, d) in tagJobs) {
+                val tex = d.await().keep()
+                r.rankTags[id] = PhysicallyBasedMaterial.create(BlendingMode.MASKED).apply {
+                    setBaseColor(Color4(1f, 1f, 1f, 1f)); setBaseColorTexture(tex); setOpacityThreshold(0.5f)
+                    setRoughness(0.5f); setMetallic(0f); setEmissiveColor(Color4(0.18f, 0.18f, 0.18f, 1f))
+                }.keep()
+            }
             tx.values.forEach { it.keep() }
             r.legalDot = unlit(tx.getValue("dot")).keep()
             r.captureFrame = unlit(tx.getValue("cap")).keep()

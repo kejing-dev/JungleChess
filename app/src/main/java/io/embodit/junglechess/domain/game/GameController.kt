@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
@@ -56,9 +57,9 @@ class GameController(
     val state: StateFlow<UiState> = _state.asStateFlow()
     private val s get() = _state.value
 
-    private val engine = Engine(seed)
-    private val hintEngine = Engine(seed + 1)
     private val random = Random(seed)
+    /** Searches running right now (each on its own Engine instance; tests assert a cancelled one stops). */
+    val runningSearches = java.util.concurrent.atomic.AtomicInteger(0)
     private var history = ArrayList<Game>()
     private val redo = ArrayList<Game>()
     private var aiJob: Job? = null
@@ -69,6 +70,7 @@ class GameController(
     private var flashToken = 0
     private var turnStartedAt = 0L
     private var savedHistory: List<Game> = emptyList()
+    private var alertSounded = false
 
     /** Minimum time the AI "thinks" so its move is readable (design package gameSpec.ai.minThinkMs). */
     var minThinkMs = 400L
@@ -280,7 +282,10 @@ class GameController(
         val before = game.position
         val after = JungleRules.apply(before, move)
         val status = JungleRules.status(after)
+        // the same position (same side to move) a third time is a draw (critic R10: no endless shuffling)
+        val seen = history.count { it.position == after } + (if (game.position == after) 1 else 0)
         val result = (status as? GameStatus.Won)?.let { GameResult(it.winner, it.reason, move.piece) }
+            ?: if (seen >= 2) GameResult(null, WinReason.REPETITION) else null
         val byHuman = Pieces.side(move.piece) == game.human
         history.add(game)
         if (history.size > GameCodec.MAX_HISTORY) history.removeAt(0)
@@ -357,7 +362,7 @@ class GameController(
         val result = game.result
         if (result != null) {
             _state.update { it.copy(phase = Phase.RESULT, line = Line(LineKey.RESULT, result.piece.takeIf { p -> p >= 0 }?.let { p -> Pieces.animal(p) }), lit = emptyList()) }
-            cue(if (result.winner == game.human) Cue.WIN else Cue.LOSE, null)
+            cue(when (result.winner) { game.human -> Cue.WIN; null -> Cue.PLACE; else -> Cue.LOSE }, null)
             log("RESULT winner=${result.winner} reason=${result.reason} human=${game.human}")
             return
         }
@@ -372,9 +377,15 @@ class GameController(
             s.line.key in setOf(LineKey.THEY_CAPTURED) -> s.line
             else -> Line(LineKey.YOUR_MOVE)
         }
+        val wasThreatened = alertSounded
         _state.update { it.copy(phase = Phase.IDLE, denThreat = threats, line = line, restored = fromRestore) }
         _state.update { it.copy(lit = litPieces(it)) }
-        if (threats.isNotEmpty()) { cue(Cue.ALARM, null); log("ALERT den threatened by ${threats.joinToString(",") { Sq.name(it) }}") }
+        alertSounded = threats.isNotEmpty()
+        if (threats.isNotEmpty()) {
+            // the drum only when the threat appears, not every turn it lasts (critic S4)
+            if (!wasThreatened) cue(Cue.ALARM, null)
+            log("ALERT den threatened by ${threats.joinToString(",") { Sq.name(it) }}")
+        }
         if (s.hintOn) requestHint()
     }
 
@@ -393,8 +404,16 @@ class GameController(
         val pos = game.position
         val level = game.level
         log("AI think level=$level")
+        // critic R1: a fresh Engine per search (no shared mutable state between searches) and a cancel check that
+        // reads this coroutine's own state, so undo / new game stops the old search within a few ms.
+        val engine = Engine(random.nextLong())
+        val reps = repeats(game)
         aiJob = scope.launch {
-            val move = withContext(compute) { engine.choose(pos, level, cancel = { aiJob?.isCancelled == true }) }
+            val move = withContext(compute) {
+                val ctx = coroutineContext
+                runningSearches.incrementAndGet()
+                try { engine.choose(pos, level, cancel = { !ctx.isActive }, repeated = reps) } finally { runningSearches.decrementAndGet() }
+            }
             val waited = now() - started
             if (waited < minThinkMs) delay(minThinkMs - waited)
             log("AI chose ${move?.notation()} in ${now() - started} ms depth=${engine.lastDepth} nodes=${engine.lastNodes}")
@@ -403,6 +422,9 @@ class GameController(
             play(move)
         }
     }
+
+    /** How often each position occurred in this game (the engine scores a repeat as a draw). */
+    private fun repeats(game: Game): Map<Position, Int> = (history.map { it.position } + game.position).groupingBy { it }.eachCount()
 
     private fun cancelAi() { aiJob?.cancel(); aiJob = null }
 
@@ -464,8 +486,14 @@ class GameController(
         if (!s.humanToMove) return
         cancelHint()
         val pos = game.position
+        val hintEngine = Engine(random.nextLong())
+        val reps = repeats(game)
         hintJob = scope.launch {
-            val m = withContext(compute) { hintEngine.hint(pos, cancel = { hintJob?.isCancelled == true }) }
+            val m = withContext(compute) {
+                val ctx = coroutineContext
+                runningSearches.incrementAndGet()
+                try { hintEngine.hint(pos, cancel = { !ctx.isActive }, repeated = reps) } finally { runningSearches.decrementAndGet() }
+            }
             if (s.game?.position == pos && s.hintOn) { _state.update { it.copy(hint = m) }; log("HINT ${m?.notation()}") }
         }
     }

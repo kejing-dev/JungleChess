@@ -39,8 +39,26 @@ object BoardTextures {
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = team; typeface = bold; textAlign = Paint.Align.CENTER; textSize = size * 0.2f }
         val fm = text.fontMetrics
         val base = cx - (fm.ascent + fm.descent) / 2f
-        c.drawText(if (zh) a.zh else a.letter.toString(), size * 0.2f, base, text)
+        c.drawText(if (zh) a.zh else a.rank.toString(), size * 0.2f, base, text)
         c.drawText(a.rank.toString(), size * 0.8f, base, text)
+        return bmp
+    }
+
+    /**
+     * Rank tag (critic B2): a team-coloured plate with the rank digit, standing at the user's edge of every base so
+     * the rank reads at a glance from the seat for both teams. Digits only: no letters (R7).
+     */
+    fun rankTag(id: Int, w: Int = 128, h: Int = 104): Bitmap {
+        val bmp = bitmap(w, h)
+        val c = Canvas(bmp)
+        val team = if (Pieces.side(id) == Side.RED) 0xFFB5452E.toInt() else 0xFF2F5F9E.toInt()
+        c.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), h * 0.28f, h * 0.28f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = team })
+        c.drawRoundRect(RectF(w * 0.06f, h * 0.07f, w * 0.94f, h * 0.93f), h * 0.22f, h * 0.22f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFF7F1E3.toInt(); style = Paint.Style.STROKE; strokeWidth = h * 0.05f
+        })
+        val t = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF7F1E3.toInt(); typeface = bold; textAlign = Paint.Align.CENTER; textSize = h * 0.82f }
+        val fm = t.fontMetrics
+        c.drawText(Pieces.animal(id).rank.toString(), w / 2f, h / 2f - (fm.ascent + fm.descent) / 2f, t)
         return bmp
     }
 

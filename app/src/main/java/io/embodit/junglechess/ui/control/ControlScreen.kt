@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pico.spatial.ui.design.Button
@@ -133,7 +135,7 @@ private fun exitApp(context: Context, graph: Graph) {
 
 @Composable
 private fun Title(text: String) {
-    Text(text, style = PicoTheme.typography.titleLarge, color = PicoTheme.colorScheme.labelPrimary, maxLines = 1, onTextLayout = overflowLog("title/$text"))
+    Text(text, style = PicoTheme.typography.titleLarge, color = PicoTheme.colorScheme.labelPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, onTextLayout = overflowLog("title/$text"))
 }
 
 @Composable
@@ -331,22 +333,75 @@ private fun ColumnScope.NewPage(s: UiState, c: GameController, t: Texts) {
 
 @Composable
 private fun ColumnScope.RulesPage(s: UiState, c: GameController, t: Texts) {
-    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Title(t.t("大的吃小的。老鼠例外，它能吃象。", "Big eats small. Except the rat: it eats the elephant."))
-        Text(
-            Animal.entries.reversed().joinToString(" › ") { t.animalLabel(it) } + t.t(" › 鼠 ↩ 象", " › R ↩ E"),
-            style = PicoTheme.typography.bodyMedium, color = PicoTheme.colorScheme.labelPrimary,
-        )
-        RuleCard(t.t("鼠和象", "Rat and elephant"), t.t("鼠在岸上能吃象，象吃不了鼠。", "On land the rat can take the elephant. The elephant can't take the rat."))
-        RuleCard(t.t("狮虎跳河", "Lion and tiger leap"), t.t("沿直线跳到对岸；河里有老鼠就跳不了。", "Straight over the river. A rat in the water blocks the leap."))
-        RuleCard(t.t("陷阱", "Traps"), t.t("进了对方的坑你就是 0 级。自己的坑没事。", "In their trap you're rank 0. Your own traps are fine."))
-        Small(t.t(
-            "新手常错：只有鼠能下河 · 河里的鼠谁也吃不到，它也吃不到岸上的 · 不能走进自己的家 · 没棋走了就输。谁先走进对方的家，谁赢。",
-            "Common slips: only the rat swims · a rat in the river can't be taken and can't take anyone on land · you can't enter your own den · no moves means you lose. Walk into their den first and you win.",
-        ))
+    // everything on the first screen of the 640 dp window (critic B1): ring diagram + three cards side by side,
+    // the four common slips as a list, the button
+    Title(t.t("大的吃小的。老鼠例外，它能吃象。", "Big eats small. Except the rat: it eats the elephant."))
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        WhoEatsWho(t, Modifier.size(196.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            RuleCard(t.t("鼠和象", "Rat and elephant"), t.t("鼠在岸上能吃象，象吃不了鼠。", "On land the rat takes the elephant. Never the other way."))
+            RuleCard(t.t("狮虎跳河", "Lion and tiger leap"), t.t("沿直线跳到对岸；河里有老鼠就跳不了。", "Straight over the river. A rat in the water blocks it."))
+            RuleCard(t.t("陷阱", "Traps"), t.t("进了对方的坑就是 0 级。自己的坑没事。", "In their trap you're rank 0. Your own traps are fine."))
+        }
     }
     Spacer(Modifier.height(12.dp))
+    Text(t.t("新手常错", "Common slips"), style = PicoTheme.typography.titleSmall, color = PicoTheme.colorScheme.labelPrimary)
+    listOf(
+        t.t("只有老鼠能下河。", "Only the rat swims."),
+        t.t("河里的鼠谁也吃不到，它也吃不到岸上的。", "A rat in the river can't be taken, and can't take anyone on land."),
+        t.t("不能走进自己的家。走进对方的家就赢。", "You can't enter your own den. Walk into theirs to win."),
+        t.t("没棋走了就输。", "No moves left means you lose."),
+    ).forEach { Text("· $it", style = PicoTheme.typography.bodyMedium, color = PicoTheme.colorScheme.labelPrimary, maxLines = 2, onTextLayout = overflowLog("rules/slip")) }
+    Spacer(Modifier.weight(1f))
     ActionButton(t.t("开始下棋", "Let's play"), { c.rulesDone() }, Modifier.fillMaxWidth(), icon = R.drawable.ic_play_arrow, primary = true)
+}
+
+/** The "who eats who" ring of the design package (S01): eight animals by rank, arrows big -> small, rat -> elephant in red. */
+@Composable
+private fun WhoEatsWho(t: Texts, modifier: Modifier) {
+    val ink = PicoTheme.colorScheme.labelPrimary
+    val names = Animal.entries.reversed() // elephant 8 .. rat 1, clockwise from the top
+    androidx.compose.foundation.Canvas(modifier) {
+        val n = names.size
+        val cx = size.width / 2; val cy = size.height / 2
+        val r = size.minDimension / 2 - 26.dp.toPx()
+        fun at(i: Int, rr: Float = r): androidx.compose.ui.geometry.Offset {
+            val a = (-Math.PI / 2 + 2 * Math.PI * i / n).toFloat()
+            return androidx.compose.ui.geometry.Offset(cx + rr * kotlin.math.cos(a), cy + rr * kotlin.math.sin(a))
+        }
+        // big -> small arrows along the ring
+        for (i in 0 until n - 1) arrow(at(i, r), at(i + 1, r), ink.copy(alpha = 0.55f), 2.dp.toPx(), 22.dp.toPx())
+        // the exception: rat -> elephant, red, through the inside
+        arrow(at(n - 1, r), at(0, r), JungleColors.Bad, 3.dp.toPx(), 22.dp.toPx())
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textAlign = android.graphics.Paint.Align.CENTER; textSize = 13.dp.toPx(); isFakeBoldText = true
+        }
+        for (i in 0 until n) {
+            val p = at(i)
+            drawCircle(JungleColors.Wood, radius = 19.dp.toPx(), center = p)
+            drawCircle(JungleColors.Ink, radius = 19.dp.toPx(), center = p, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+            paint.color = 0xFF1F2A1E.toInt()
+            val label = if (t.zh) "${names[i].zh}${names[i].rank}" else "${names[i].en.take(4)}"
+            paint.textSize = (if (t.zh) 13 else 10).dp.toPx()
+            drawContext.canvas.nativeCanvas.drawText(label, p.x, p.y + paint.textSize * 0.35f, paint)
+            if (!t.zh) { paint.textSize = 9.dp.toPx(); drawContext.canvas.nativeCanvas.drawText(names[i].rank.toString(), p.x, p.y + 13.dp.toPx(), paint) }
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.arrow(from: androidx.compose.ui.geometry.Offset, to: androidx.compose.ui.geometry.Offset, color: Color, width: Float, inset: Float) {
+    val d = to - from
+    val len = d.getDistance()
+    if (len < 1f) return
+    val u = d / len
+    val a = from + u * inset
+    val b = to - u * inset
+    drawLine(color, a, b, strokeWidth = width)
+    val n = androidx.compose.ui.geometry.Offset(-u.y, u.x)
+    val h = width * 3.2f
+    drawLine(color, b, b - u * h + n * (h * 0.6f), strokeWidth = width)
+    drawLine(color, b, b - u * h - n * (h * 0.6f), strokeWidth = width)
 }
 
 @Composable
@@ -359,31 +414,46 @@ private fun RuleCard(title: String, body: String) {
 
 @Composable
 private fun ColumnScope.SettingsPage(s: UiState, c: GameController, t: Texts, onExit: () -> Unit) {
+    // seven rows + about + [退出应用] on the first screen of the 640 dp window (critic B1, D26); no scrolling
     val set = s.settings
-    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Title(t.t("设置", "Settings"))
-        Small(t.t("声音与显示", "Sound and display"))
-        SettingRow(t.t("语言", "Language")) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Choice(t.t("跟随系统", "System"), set.language == Language.SYSTEM, { c.updateSettings { it.copy(language = Language.SYSTEM) } })
-                Choice("中文", set.language == Language.ZH, { c.updateSettings { it.copy(language = Language.ZH) } })
-                Choice("English", set.language == Language.EN, { c.updateSettings { it.copy(language = Language.EN) } })
+    Title(t.t("设置", "Settings"))
+    Spacer(Modifier.height(4.dp))
+    SettingRow(t.t("语言", "Language")) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Choice(t.t("跟随系统", "System"), set.language == Language.SYSTEM, { c.updateSettings { it.copy(language = Language.SYSTEM) } })
+            Choice("中文", set.language == Language.ZH, { c.updateSettings { it.copy(language = Language.ZH) } })
+            Choice("English", set.language == Language.EN, { c.updateSettings { it.copy(language = Language.EN) } })
+        }
+    }
+    SettingRow(t.t("音效", "Sound")) { SwitchCell(set.sound) { on -> c.updateSettings { it.copy(sound = on) } } }
+    SettingRow(t.t("音量", "Volume")) {
+        // three 48 dp chips instead of a thin slider (critic R3, D44)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(t.t("小", "Low"), t.t("中", "Medium"), t.t("大", "High")).forEachIndexed { i, label ->
+                Choice(label, set.volume == i, { c.updateSettings { it.copy(volume = i) } })
             }
         }
-        SettingRow(t.t("音效", "Sound")) { Switch(checked = set.sound, onCheckedChange = { on -> c.updateSettings { it.copy(sound = on) } }) }
-        SettingRow(t.t("音量：", "Volume: ") + when (set.volume) { 0 -> t.t("小", "low"); 1 -> t.t("中", "medium"); else -> t.t("大", "high") }) {
-            SegmentSlider(set.volume, 3, { v -> c.updateSettings { it.copy(volume = v.coerceIn(0, 2)) } }, Modifier.width(180.dp))
-        }
-        SettingRow(t.t("减少动态", "Reduce motion")) { Switch(checked = set.reducedMotion, onCheckedChange = { on -> c.updateSettings { it.copy(reducedMotion = on) } }) }
-        Small(t.t("对局与其它", "Game and more"))
-        SettingRow(t.t("照亮能动的子（一直）", "Light movable pieces (always)")) { Switch(checked = set.litAlways, onCheckedChange = { on -> c.updateSettings { it.copy(litAlways = on) } }) }
-        SettingRow(t.t("窗口找不到了", "Lost the window")) { ActionButton(t.t("叫回面前", "Bring back"), { WindowCtl.recall() }, icon = R.drawable.ic_center_focus) }
-        Small(t.t("关于 · 版本 0.1.0 · 许可：Tripo 模型 / Material Icons（Apache-2.0）/ 合成音效", "About · v0.1.0 · Licences: Tripo models / Material Icons (Apache-2.0) / synthesised sounds"))
-        Spacer(Modifier.height(12.dp))
-        if (s.confirm == Confirm.EXIT) {
-            ConfirmCard(t.t("退出斗兽棋？", "Quit Jungle Chess?"), t.t("棋局会存着，下次接着下。", "Your game is saved for next time."), t.t("取消", "Cancel"), t.t("退出", "Quit"), { c.askConfirm(null) }, onExit)
-        } else {
-            ActionButton(t.t("退出应用", "Quit app"), { c.askConfirm(Confirm.EXIT) }, Modifier.fillMaxWidth(), icon = R.drawable.ic_logout, tag = "exit")
-        }
+    }
+    SettingRow(t.t("减少动态", "Reduce motion")) { SwitchCell(set.reducedMotion) { on -> c.updateSettings { it.copy(reducedMotion = on) } } }
+    SettingRow(t.t("一直照亮能动的子", "Always light movable pieces")) { SwitchCell(set.litAlways) { on -> c.updateSettings { it.copy(litAlways = on) } } }
+    SettingRow(t.t("窗口找不到了", "Lost this window")) {
+        ActionButton(t.t("重开面板", "Reopen panel"), { WindowCtl.recall() }, icon = R.drawable.ic_center_focus, tag = "recall")
+    }
+    Small(t.t("面板会在棋盘旁重新打开，用系统把手挪到顺手的位置。点棋盘前的席位牌也行。", "The panel reopens beside the board; move it with its system handle. Tapping the seat card does the same."))
+    Spacer(Modifier.height(6.dp))
+    Small(t.t("关于 · 版本 0.1.1 · 许可：Tripo 模型 / Material Icons（Apache-2.0）/ 合成音效", "About · v0.1.1 · Licences: Tripo models / Material Icons (Apache-2.0) / synthesised sounds"))
+    Spacer(Modifier.weight(1f))
+    if (s.confirm == Confirm.EXIT) {
+        ConfirmCard(t.t("退出斗兽棋？", "Quit Jungle Chess?"), t.t("棋局会存着，下次接着下。", "Your game is saved for next time."), t.t("取消", "Cancel"), t.t("退出", "Quit"), { c.askConfirm(null) }, onExit)
+    } else {
+        ActionButton(t.t("退出应用", "Quit app"), { c.askConfirm(Confirm.EXIT) }, Modifier.fillMaxWidth(), icon = R.drawable.ic_logout, tag = "exit")
+    }
+}
+
+/** A Switch inside a 48 dp tap cell, centred on the row (D44: measure the control, not the row). */
+@Composable
+private fun SwitchCell(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Box(Modifier.size(width = 64.dp, height = 48.dp), contentAlignment = Alignment.Center) {
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

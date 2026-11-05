@@ -3,6 +3,7 @@ package io.embodit.junglechess.ui.board
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -126,18 +127,22 @@ fun BoardView() {
                 }
             }
             .pointerInput(Unit) {
+                // a drag only counts after the pointer travelled 1 cm, so a plain pinch never runs drag + tap together (critic R9)
+                var pendingId = -1
                 detectSpatialDragGesture(
                     context = context,
                     targetedToEntity = TargetEntity.any(),
-                    onDragStart = { _, v ->
-                        val id = scene.pieceIdOf(v.targetEntity?.getName())
-                        val sq = if (id >= 0) current.game?.position?.squareOf(id) ?: -1 else -1
-                        if (sq >= 0 && WindowCtl.controlOpen && controller.dragStart(sq)) scene.beginDrag(id)
-                    },
-                    onDragEnd = { if (scene.dragging) controller.dragEnd(scene.endDrag()) },
-                    onDragCancel = { if (scene.dragging) controller.dragEnd(scene.endDrag().let { -1 }) },
+                    onDragStart = { _, v -> pendingId = scene.pieceIdOf(v.targetEntity?.getName()) },
+                    onDragEnd = { pendingId = -1; if (scene.dragging) controller.dragEnd(scene.endDrag()) },
+                    onDragCancel = { pendingId = -1; if (scene.dragging) { scene.endDrag(); controller.dragEnd(-1) } },
                 ) { v ->
-                    if (scene.dragging) scene.dragTo(P3(pxToM(v.dragAmount.x), -pxToM(v.dragAmount.y), pxToM(v.dragAmount.z)))
+                    val d = P3(pxToM(v.dragAmount.x), -pxToM(v.dragAmount.y), pxToM(v.dragAmount.z))
+                    if (!scene.dragging && pendingId >= 0 && d.length() > 0.01f && WindowCtl.controlOpen) {
+                        val sq = current.game?.position?.squareOf(pendingId) ?: -1
+                        if (sq >= 0 && controller.dragStart(sq)) scene.beginDrag(pendingId)
+                        pendingId = -1
+                    }
+                    if (scene.dragging) scene.dragTo(d)
                 }
             },
         attachments = {
@@ -181,7 +186,12 @@ private fun SeatCard(w: Dp, h: Dp) {
     val t = LocalTexts.current
     val g = s.game
     val text = t.seatCard(s.phase == Phase.THINKING, g?.human ?: Side.RED, g?.position?.toMove, g?.result != null)
-    Box(Modifier.size(w, h).clip(RoundedCornerShape(h / 3)).background(JungleColors.Ink), contentAlignment = Alignment.Center) {
+    // a pinch on the seat card brings the control window back beside the board (an entry outside the panel, critic R2)
+    Box(
+        Modifier.size(w, h).clip(RoundedCornerShape(h / 3)).background(JungleColors.Ink)
+            .clickable { Log.i(TAG, "SEAT tapped -> window"); if (WindowCtl.controlOpen) WindowCtl.recall() else WindowCtl.openWindow("seat") },
+        contentAlignment = Alignment.Center,
+    ) {
         Text(text, color = JungleColors.Paper, fontSize = (h.value * 0.34f).sp, textAlign = TextAlign.Center, maxLines = 1, onTextLayout = { r -> if (r.hasVisualOverflow) Log.w(TAG, "OVERFLOW seatCard/$text") })
     }
 }

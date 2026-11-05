@@ -9,30 +9,39 @@ import io.embodit.junglechess.domain.model.Side
 import io.embodit.junglechess.domain.model.Sq
 import io.embodit.junglechess.domain.model.Terrain
 import io.embodit.junglechess.domain.rules.JungleRules
+import kotlin.math.abs
 import kotlin.random.Random
 
 /**
- * Five AI levels (design package gameSpec.ai): negamax alpha-beta with iterative deepening, capture-only
- * quiescence, history ordering and a time limit. Level 1 is depth 1, drops moves that hand a piece over for
- * free, then picks one of the best five at random (B27: a first-timer can win); level 2 depth 2, random of
- * the best three. Deterministic for a given seed.
+ * Five AI levels (design package gameSpec.ai): negamax alpha-beta with iterative deepening, capture / den
+ * quiescence, history ordering, repetition awareness and a time limit.
+ *
+ * - L1 depth 1, drops moves that hand a piece over for free, random among the best five, wanders half the time
+ *   (B27: a first-timer can win).
+ * - L2 depth 2, random among the best three.
+ * - L3 depth 3 / 300 ms, shallow quiescence.  L4 depth 4 / 800 ms.  L5 depth up to 7 / 2 s, full quiescence.
+ *
+ * An instance is used by ONE search at a time (GameController makes a new one per search, critic R1).
+ * [repeated] = positions already seen in the game (count); a position reached a third time is a draw
+ * (GameController applies the same rule), and a repetition inside the search path scores as a draw, so a side
+ * that is ahead keeps making progress instead of shuffling (critic R10).
  */
 class Engine(seed: Long = 7L) {
     private val random = Random(seed)
     private val history = HashMap<Long, Int>()
 
-    data class Level(val n: Int, val depth: Int, val timeMs: Long, val randomTop: Int, val safeFilter: Boolean, val wander: Float = 0f)
+    data class Level(val n: Int, val depth: Int, val timeMs: Long, val randomTop: Int, val safeFilter: Boolean, val wander: Float = 0f, val qDepth: Int = 4, val materialOnly: Boolean = false)
 
     companion object {
         val LEVELS = listOf(
-            Level(1, depth = 1, timeMs = 0, randomTop = 5, safeFilter = true, wander = WANDER),
-            Level(2, depth = 2, timeMs = 0, randomTop = 3, safeFilter = false),
-            Level(3, depth = 3, timeMs = 300, randomTop = 1, safeFilter = false),
-            Level(4, depth = 4, timeMs = 800, randomTop = 1, safeFilter = false),
-            Level(5, depth = 7, timeMs = 2000, randomTop = 1, safeFilter = false),
+            Level(1, depth = 1, timeMs = 0, randomTop = 5, safeFilter = true, wander = WANDER, qDepth = 0, materialOnly = true),
+            Level(2, depth = 2, timeMs = 0, randomTop = 3, safeFilter = false, qDepth = 1),
+            Level(3, depth = 3, timeMs = 300, randomTop = 1, safeFilter = false, qDepth = 2),
+            Level(4, depth = 4, timeMs = 800, randomTop = 1, safeFilter = false, qDepth = 2),
+            Level(5, depth = 7, timeMs = 2000, randomTop = 1, safeFilter = false, qDepth = 6),
         )
         /** Beginner: share of moves that just wander (any legal move), so a first-timer can win (B27). */
-        const val WANDER = 0.5f
+        const val WANDER = 0.6f
         const val HINT_LEVEL = 3
         const val WIN = 100_000
         private val VALUE = intArrayOf(0, 200, 300, 400, 500, 600, 700, 800, 900) // by rank: rat 2 .. elephant 9 (x100)
@@ -47,6 +56,10 @@ class Engine(seed: Long = 7L) {
     private var cancelled: () -> Boolean = { false }
     private var clock: () -> Long = { System.currentTimeMillis() }
     private var nodes = 0L
+    private var qDepth = 4
+    /** Beginner: counts material only (takes pieces, has no plan to reach the den) — B27. */
+    private var materialOnly = false
+    private val path = HashMap<Position, Int>()
     var lastDepth = 0
         private set
     var lastNodes = 0L
@@ -54,16 +67,29 @@ class Engine(seed: Long = 7L) {
 
     /**
      * Best move for the side to move at [levelN] (1..5), or null when there is none.
-     * [timeLimited] = false ignores the level's time budget and searches to its full depth (tests).
+     * [timeLimited] = false ignores the level's time budget and searches to its full depth (tests);
+     * [timeScale] shrinks the budget proportionally (tests of the timed levels).
      */
-    fun choose(pos: Position, levelN: Int, cancel: () -> Boolean = { false }, now: () -> Long = { System.currentTimeMillis() }, timeLimited: Boolean = true): Move? {
+    fun choose(
+        pos: Position,
+        levelN: Int,
+        cancel: () -> Boolean = { false },
+        now: () -> Long = { System.currentTimeMillis() },
+        timeLimited: Boolean = true,
+        repeated: Map<Position, Int> = emptyMap(),
+        timeScale: Float = 1f,
+    ): Move? {
         val level = level(levelN)
         val moves = JungleRules.allLegalMoves(pos)
         if (moves.isEmpty()) return null
         cancelled = cancel
         clock = now
         nodes = 0
-        deadline = if (timeLimited && level.timeMs > 0) now() + level.timeMs else Long.MAX_VALUE
+        qDepth = level.qDepth
+        materialOnly = level.materialOnly
+        path.clear()
+        path.putAll(repeated)
+        deadline = if (timeLimited && level.timeMs > 0) now() + (level.timeMs * timeScale).toLong().coerceAtLeast(1) else Long.MAX_VALUE
         // immediate win: walk into the den (the beginner may miss it while wandering)
         if (level.wander == 0f) moves.firstOrNull { it.to == Terrain.den(pos.toMove.other) }?.let { return it }
 
@@ -74,8 +100,7 @@ class Engine(seed: Long = 7L) {
             if (safe.isNotEmpty()) candidates = safe
         }
         val scored = if (level.randomTop > 1) {
-            candidates.map { it to -searchRoot(JungleRules.apply(pos, it), level.depth - 1) }
-                .sortedByDescending { it.second }
+            candidates.map { it to -searchRoot(JungleRules.apply(pos, it), level.depth - 1) }.sortedByDescending { it.second }
         } else {
             iterative(pos, candidates, level.depth)
         }
@@ -88,13 +113,18 @@ class Engine(seed: Long = 7L) {
     }
 
     /** Engine suggestion for the hint (fixed at level 3 whatever the opponent level). */
-    fun hint(pos: Position, cancel: () -> Boolean = { false }): Move? = choose(pos, HINT_LEVEL, cancel)
+    fun hint(pos: Position, cancel: () -> Boolean = { false }, repeated: Map<Position, Int> = emptyMap()): Move? =
+        choose(pos, HINT_LEVEL, cancel, repeated = repeated)
 
     private fun searchRoot(pos: Position, depth: Int): Int = try {
-        negamax(pos, depth, -WIN * 2, WIN * 2, 1)
+        enter(pos)
+        try { negamax(pos, depth, -WIN * 2, WIN * 2, 1) } finally { leave(pos) }
     } catch (e: Stop) {
         0
     }
+
+    private fun enter(p: Position) { path[p] = (path[p] ?: 0) + 1 }
+    private fun leave(p: Position) { val n = (path[p] ?: 1) - 1; if (n <= 0) path.remove(p) else path[p] = n }
 
     private fun iterative(pos: Position, moves: List<Move>, maxDepth: Int): List<Pair<Move, Int>> {
         var best: List<Pair<Move, Int>> = moves.map { it to 0 }
@@ -104,7 +134,9 @@ class Engine(seed: Long = 7L) {
             try {
                 var alpha = -WIN * 2
                 for (m in ordered) {
-                    val v = -negamax(JungleRules.apply(pos, m), depth - 1, -WIN * 2, -alpha + 1, 1)
+                    val next = JungleRules.apply(pos, m)
+                    enter(next)
+                    val v = try { -negamax(next, depth - 1, -WIN * 2, -alpha + 1, 1) } finally { leave(next) }
                     results += m to v
                     if (v > alpha) alpha = v
                 }
@@ -126,17 +158,23 @@ class Engine(seed: Long = 7L) {
         }
     }
 
+    /** A position seen twice before (game + path) is a draw now; one seen once is scored as a draw in the search. */
+    private fun repetition(pos: Position): Boolean = (path[pos] ?: 0) >= 2
+
     private fun negamax(pos: Position, depth: Int, alphaIn: Int, beta: Int, ply: Int): Int {
         checkStop()
         when (val st = JungleRules.status(pos)) {
             is GameStatus.Won -> return if (st.winner == pos.toMove) WIN - ply else -WIN + ply
             GameStatus.Ongoing -> {}
         }
-        if (depth <= 0) return quiesce(pos, alphaIn, beta, ply, 4)
+        if (repetition(pos)) return 0
+        if (depth <= 0) return quiesce(pos, alphaIn, beta, ply, qDepth)
         var alpha = alphaIn
         var best = -WIN * 2
         for (m in order(JungleRules.allLegalMoves(pos), pos)) {
-            val v = -negamax(JungleRules.apply(pos, m), depth - 1, -beta, -alpha, ply + 1)
+            val next = JungleRules.apply(pos, m)
+            enter(next)
+            val v = try { -negamax(next, depth - 1, -beta, -alpha, ply + 1) } finally { leave(next) }
             if (v > best) best = v
             if (v > alpha) alpha = v
             if (alpha >= beta) {
@@ -155,7 +193,7 @@ class Engine(seed: Long = 7L) {
             GameStatus.Ongoing -> {}
         }
         val stand = evaluate(pos, pos.toMove)
-        if (left == 0 || stand >= beta) return stand
+        if (left <= 0 || stand >= beta) return stand
         var alpha = maxOf(alphaIn, stand)
         val den = Terrain.den(pos.toMove.other)
         val noisy = JungleRules.allLegalMoves(pos).filter { it.captured >= 0 || it.to == den }
@@ -198,10 +236,9 @@ class Engine(seed: Long = 7L) {
         val enemyHasRat = pos.squareOf(Pieces.id(enemy, Animal.RAT)) >= 0
         val ownRat = pos.squareOf(Pieces.id(side, Animal.RAT)) >= 0
         val targetDen = Terrain.den(enemy)
+        val ownDen = Terrain.den(side)
         var s = 0
-        val dists = ArrayList<Int>(8)
         var defenders = 0
-        val ownTraps = Terrain.traps(side)
         for (sq in 0 until Sq.COUNT) {
             val id = pos.at(sq)
             if (id < 0 || Pieces.side(id) != side) continue
@@ -213,24 +250,23 @@ class Engine(seed: Long = 7L) {
             }
             if (Terrain.trapOwner(sq) == enemy) v -= v / 2
             s += v
-            dists += distance(sq, targetDen, a)
-            if (sq in ownTraps || isDenGuard(sq, side)) defenders++
+            if (materialOnly) continue
+            // advancement: every animal is pulled toward the enemy den, strongly in the last three steps
+            val d = distance(sq, targetDen, a)
+            s += (12 - d).coerceAtLeast(0) * ADVANCE[a.rank]
+            s += when (d) { 1 -> 260; 2 -> 120; 3 -> 50; else -> 0 }
+            // a guard near home: within two steps of the own den
+            if (abs(Sq.col(sq) - Sq.col(ownDen)) + abs(Sq.row(sq) - Sq.row(ownDen)) <= 2) defenders++
         }
-        // advance: the three closest pieces to the enemy den
-        dists.sort()
-        for (d in dists.take(3)) s += 300 / (d + 1)
-        s += defenders * 50
+        s += minOf(defenders, 2) * 40
         return s
     }
 
-    private fun isDenGuard(sq: Int, side: Side): Boolean {
-        val den = Terrain.den(side)
-        return kotlin.math.abs(Sq.col(sq) - Sq.col(den)) + kotlin.math.abs(Sq.row(sq) - Sq.row(den)) == 2
-    }
+    private val ADVANCE = intArrayOf(0, 9, 7, 8, 9, 11, 13, 13, 8)
 
     /** Manhattan distance to the den, plus a detour for animals that cannot cross the river columns. */
     private fun distance(sq: Int, den: Int, a: Animal): Int {
-        val d = kotlin.math.abs(Sq.col(sq) - Sq.col(den)) + kotlin.math.abs(Sq.row(sq) - Sq.row(den))
+        val d = abs(Sq.col(sq) - Sq.col(den)) + abs(Sq.row(sq) - Sq.row(den))
         val c = Sq.col(sq)
         val r = Sq.row(sq)
         val crossing = (r <= 6 && Sq.row(den) == 9 || r >= 4 && Sq.row(den) == 1)

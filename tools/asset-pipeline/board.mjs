@@ -165,7 +165,7 @@ for (let r = 1; r <= ROWS; r++) for (let c = 0; c < COLS; c++) {
         G.stone.quad(p(rOut, a1, yTop), p(rOut, a0, yTop), p(rOut, a0, yTop + ht), p(rOut, a1, yTop + ht));
         G.stone.quad(p(rIn, a0, yTop), p(rIn, a1, yTop), p(rIn, a1, yTop + ht), p(rIn, a0, yTop + ht));
       }
-      const outer = r === 1 ? -1 : 1, zl = z + outer * (h - 0.003), lw = 0.022, post = 0.0035, lh = 0.015, beam = 0.004;
+      const outer = -1 /* far side (-Z) for both dens: never between the seat and the hole (critic R6) */, zl = z + outer * (h - 0.003), lw = 0.022, post = 0.0035, lh = 0.015, beam = 0.004;
       G.stone.box(x - lw, x - lw + post * 2, yTop, yTop + lh, zl - post, zl + post, 'nsew');
       G.stone.box(x + lw - post * 2, x + lw, yTop, yTop + lh, zl - post, zl + post, 'nsew');
       G.stone.box(x - lw - 0.002, x + lw + 0.002, yTop + lh, yTop + lh + beam, zl - post - 0.001, zl + post + 0.001);

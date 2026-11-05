@@ -106,6 +106,14 @@ class LayoutTest {
         assertEquals(p.x, back.x, 1e-5f); assertEquals(p.y, back.y, 1e-5f); assertEquals(p.z, back.z, 1e-5f)
     }
 
+    @Test fun heightsFollowRanks() {
+        // critic B2: one uniform scale, so the bigger rank always stands taller
+        val hs = Animal.entries.map { BoardLayout.animalHeight(it) }
+        for (i in 1 until hs.size) assertTrue("${Animal.entries[i]} ${hs[i]} > ${Animal.entries[i - 1]} ${hs[i - 1]}", hs[i] > hs[i - 1])
+        val ratio = hs.last() / hs.first()
+        assertEquals(5.5f / 3.2f, ratio, 0.02f)
+    }
+
     @Test fun piecesFitTheirSquares() {
         // animals are calibrated to <= 6 cm long (elephant) so neighbours in a column never touch
         for (a in Animal.entries) assertTrue(BoardLayout.animalHeight(a) <= 0.055f)

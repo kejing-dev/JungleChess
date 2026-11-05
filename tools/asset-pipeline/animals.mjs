@@ -16,10 +16,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const MAX_TRIS = 2000;
-const MAX_FOOTPRINT = 0.058; // longest horizontal side, metres (cell pitch 0.060: two animals in a column keep a 2 mm gap)
+const MAX_FOOTPRINT = 0.059; // longest horizontal side, metres (cell pitch 0.060)
+// v0.1.1 (critic B2): ONE scale factor for the whole set so height order = rank order. Every animal gets
+// designHeight x UNIFORM, where UNIFORM is the largest factor that keeps every body <= MAX_FOOTPRINT long.
 // Heights from design-package gameSpec.pieces (cm -> m)
 export const CALIBRATION = {
-  elephant: { height: 0.055, footprint: 0.060 }, lion: { height: 0.052 }, tiger: { height: 0.050 }, leopard: { height: 0.046 },
+  elephant: { height: 0.055 }, lion: { height: 0.052 }, tiger: { height: 0.050 }, leopard: { height: 0.046 },
   wolf: { height: 0.043 }, dog: { height: 0.040 }, cat: { height: 0.037 }, rat: { height: 0.032 },
 };
 
@@ -121,6 +123,15 @@ function simplifyPositionOnly(doc, prim, maxTris) {
   return { tris: outIdx.length / 3, sloppy: fixed > 0 };
 }
 
+// pre-pass: raw bounds from the GLB JSON chunk (no geometry load) -> length / height of every animal
+function rawBounds(file) {
+  const b = fs.readFileSync(file); const len = b.readUInt32LE(12); const j = JSON.parse(b.subarray(20, 20 + len).toString());
+  const a = j.accessors[j.meshes[0].primitives[0].attributes.POSITION];
+  return { L: Math.max(a.max[0] - a.min[0], a.max[2] - a.min[2]), H: a.max[1] - a.min[1] };
+}
+export const UNIFORM = Math.min(1, ...Object.keys(CALIBRATION).map((n) => { const r = rawBounds(path.join(srcDir, `${n}.glb`)); return MAX_FOOTPRINT / (CALIBRATION[n].height * r.L / r.H); }));
+console.error('uniform scale of the design heights', UNIFORM.toFixed(4));
+
 const report = [];
 for (const name of Object.keys(CALIBRATION)) {
   const src = path.join(srcDir, `${name}.glb`);
@@ -155,8 +166,8 @@ for (const name of Object.keys(CALIBRATION)) {
   for (let i = 0; i < p.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[i + k]); mx[k] = Math.max(mx[k], p[i + k]); }
   const H = mx[1] - mn[1];
   const L = Math.max(mx[0] - mn[0], mx[2] - mn[2]);
-  const target = CALIBRATION[name].height;
-  const k = Math.min(target / H, (CALIBRATION[name].footprint ?? MAX_FOOTPRINT) / L);
+  const target = CALIBRATION[name].height * UNIFORM;
+  const k = target / H;
   const cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2;
   for (let i = 0; i < p.length; i += 3) {
     p[i] = (p[i] - cx) * k; p[i + 1] = (p[i + 1] - mn[1]) * k; p[i + 2] = (p[i + 2] - cz) * k;

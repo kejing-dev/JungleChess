@@ -58,16 +58,23 @@ object BoardLayout {
     const val DEN_SINK = -0.004f
     const val TRAY_SCALE = 0.5f
 
-    /** Animal heights after calibration (tools/asset-pipeline/animals.mjs -> calibration-report.json). */
+    /** Rank tag at the user's edge of each base (critic B2): plate size, offset toward the user, tilt back. */
+    const val TAG_W = 0.014f
+    const val TAG_H = 0.0115f
+    const val TAG_Z = 0.0305f
+    const val TAG_Y = 0.0055f
+    const val TAG_TILT_DEG = -55f
+
+    /** Animal heights after calibration: design heights x one uniform factor 0.803 (animals.mjs, calibration-report.json), so height order = rank order. */
     fun animalHeight(a: Animal): Float = when (a) {
-        Animal.ELEPHANT -> 0.0454f
-        Animal.LION -> 0.0439f
-        Animal.TIGER -> 0.0394f
-        Animal.LEOPARD -> 0.0371f
-        Animal.WOLF -> 0.0430f
-        Animal.DOG -> 0.0400f
-        Animal.CAT -> 0.0370f
-        Animal.RAT -> 0.0319f
+        Animal.ELEPHANT -> 0.0442f
+        Animal.LION -> 0.0418f
+        Animal.TIGER -> 0.0401f
+        Animal.LEOPARD -> 0.0369f
+        Animal.WOLF -> 0.0345f
+        Animal.DOG -> 0.0321f
+        Animal.CAT -> 0.0297f
+        Animal.RAT -> 0.0257f
     }
 
     /** Tallest piece (base + animal), for the envelope tests. */

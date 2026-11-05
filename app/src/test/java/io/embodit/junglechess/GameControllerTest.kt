@@ -151,3 +151,19 @@ class GameControllerTest {
         assertEquals(true, store.settings.reducedMotion)
     }
 }
+
+/** critic R1 on real threads: a new game while the master searches stops that search within 50 ms. */
+class SearchCancelTest {
+    @org.junit.Test fun newGameStopsTheRunningSearch() = kotlinx.coroutines.runBlocking {
+        val main = kotlinx.coroutines.Dispatchers.Default.limitedParallelism(1)
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + main)
+        val c = GameController(scope, kotlinx.coroutines.Dispatchers.Default, FakeStore(), now = { System.currentTimeMillis() }, seed = 3)
+        kotlinx.coroutines.withContext(main) { c.start(); c.newGame(SideChoice.BLUE, 5) } // AI (red) starts a 2 s search
+        kotlinx.coroutines.delay(300)
+        org.junit.Assert.assertEquals(1, c.runningSearches.get())
+        kotlinx.coroutines.withContext(main) { c.newGame(SideChoice.RED, 5) } // human first: no new search
+        kotlinx.coroutines.delay(50)
+        org.junit.Assert.assertEquals("old search still running 50 ms after the new game", 0, c.runningSearches.get())
+        scope.coroutineContext[kotlinx.coroutines.Job]!!.cancel()
+    }
+}

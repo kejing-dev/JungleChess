@@ -81,6 +81,7 @@ class Texts(val zh: Boolean) {
             WinReason.NO_MOVES -> if (win) t("对方没棋走了。你赢了，再来？", "They're out of moves. You win. Again?")
             else t("你没棋走了。再来？", "You're out of moves. Again?")
             WinReason.RESIGN -> t("你认输了。再来一局？", "You resigned. Another one?")
+            WinReason.REPETITION -> t("同一个局面走了三次，和棋。再来？", "Same position three times: a draw. Again?")
         }
     }
 
@@ -89,6 +90,7 @@ class Texts(val zh: Boolean) {
         WinReason.ALL_CAPTURED -> t("吃光对方就赢，按常见中文规则。", "Take every animal and you win, by the common Chinese rules.")
         WinReason.NO_MOVES -> t("无子可动判负，按常见中文规则。", "No legal moves means a loss, by the common Chinese rules.")
         WinReason.RESIGN -> t("认输算输，棋局留着。", "A resignation counts as a loss.")
+        WinReason.REPETITION -> t("同一局面第三次出现判和，免得两边来回挪。", "A position seen three times is a draw, so nobody shuffles forever.")
     }
 
     // ---- turn header ----
@@ -147,7 +149,7 @@ class Texts(val zh: Boolean) {
             for (k in LineKey.entries) for (a in Animal.entries) for (o in listOf(Animal.ELEPHANT, Animal.LEOPARD)) {
                 if (k == LineKey.ILLEGAL) Illegal.entries.forEach { out += t.illegal(it, a, o) } else out += t.line(Line(k, a, o))
             }
-            for (w in Side.entries) for (r in WinReason.entries) for (p in listOf(-1, 0, 6, 15)) {
+            for (w in Side.entries + listOf(null)) for (r in WinReason.entries) for (p in listOf(-1, 0, 6, 15)) {
                 out += t.resultTitle(GameResult(w, r, p), Side.RED); out += t.resultRule(GameResult(w, r, p))
             }
             return out.distinct()

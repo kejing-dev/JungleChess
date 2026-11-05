@@ -160,7 +160,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
         // den plates on the lintels (face +Z = toward the user for both dens)
         for (side in Side.entries) {
             val den = BoardLayout.square(Terrain.den(side))
-            val outer = if (side == Side.BLUE) -1f else 1f
+            val outer = -1f // lintel on the far side of both dens (critic R6)
             val z = den.z + outer * (0.0295f - 0.003f) + 0.0046f
             val plate = ModelEntity(r.denPlateMesh, r.denPlate!!).apply {
                 setName("denPlate:$side")
@@ -194,6 +194,14 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             pv.hit.components.set(InteractableComponent())
             pv.hit.components.set(HoverEffectComponent())
             pv.holder.addChild(pv.hit)
+            // rank tag on the user's edge of the base, upright for the seat (v1 is human vs AI: both teams face the user's eye)
+            val red = Pieces.side(id) == Side.RED
+            ModelEntity(r.tagMesh, r.rankTags.getValue(id)).apply {
+                setName("tag:$id")
+                transform().setPosition(Vector3(0f, BoardLayout.TAG_Y, if (red) BoardLayout.TAG_Z else -BoardLayout.TAG_Z))
+                    .setQuaternion((if (red) Quat() else Quat(Vector3(0f, 1f, 0f), PI.toFloat())) * Quat(Vector3(1f, 0f, 0f), Math.toRadians(BoardLayout.TAG_TILT_DEG.toDouble()).toFloat()))
+                pv.holder.addChild(this)
+            }
             pv.holder.enabled = false
             root.addChild(pv.holder)
             pieces[id] = pv

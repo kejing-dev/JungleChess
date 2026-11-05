@@ -37,7 +37,8 @@ data class Settings(
     val gamesStarted: Int = 0,
 )
 
-data class GameResult(val winner: Side, val reason: WinReason, val piece: Int = -1)
+/** [winner] null = draw (the same position a third time, critic R10). */
+data class GameResult(val winner: Side?, val reason: WinReason, val piece: Int = -1)
 
 /** One game in progress (or finished). Everything the save file needs. */
 data class Game(
@@ -139,7 +140,7 @@ object GameCodec {
         g.plies.toString(),
         g.captured.joinToString(","),
         g.lastMove?.let { "${it.from},${it.to},${it.piece},${it.captured}" } ?: "",
-        g.result?.let { "${if (it.winner == Side.RED) "r" else "b"},${it.reason.name},${it.piece}" } ?: "",
+        g.result?.let { "${when (it.winner) { Side.RED -> "r"; Side.BLUE -> "b"; null -> "-" }},${it.reason.name},${it.piece}" } ?: "",
         g.litLeft.toString(),
         g.elapsedMs.toString(),
     ).joinToString("|")
@@ -151,7 +152,7 @@ object GameCodec {
         val human = if (f[1] == "r") Side.RED else Side.BLUE
         val captured = if (f[4].isEmpty()) emptyList() else f[4].split(",").map { it.toInt() }
         val last = if (f[5].isEmpty()) null else f[5].split(",").map { it.toInt() }.let { Move(it[0], it[1], it[2], it[3]) }
-        val result = if (f[6].isEmpty()) null else f[6].split(",").let { GameResult(if (it[0] == "r") Side.RED else Side.BLUE, io.embodit.junglechess.domain.model.WinReason.valueOf(it[1]), it[2].toInt()) }
+        val result = if (f[6].isEmpty()) null else f[6].split(",").let { GameResult(when (it[0]) { "r" -> Side.RED; "b" -> Side.BLUE; else -> null }, io.embodit.junglechess.domain.model.WinReason.valueOf(it[1]), it[2].toInt()) }
         require(captured.all { it in 0 until Pieces.COUNT })
         require(last == null || (last.from in 0 until Sq.COUNT && last.to in 0 until Sq.COUNT))
         return Game(pos, human, f[2].toInt().coerceIn(1, 5), f[3].toInt(), captured, last, result, f[7].toInt(), f[8].toLong())

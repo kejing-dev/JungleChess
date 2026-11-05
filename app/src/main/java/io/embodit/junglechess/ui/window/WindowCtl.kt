@@ -66,7 +66,11 @@ object WindowCtl {
         runCatching { nav.openWindowContainer(CONTROL, CONTROL_TAG) }.onFailure { Log.e(TAG, "WINDOW open failed", it) }
     }
 
-    /** Settings [叫回面前]: close, and open again once the window is gone (an open right after close is swallowed). */
+    /**
+     * Settings [重开面板] / a pinch on the seat card: close, and open again once the window is gone (an open right after
+     * close is swallowed). The reopened window uses the same Placement.right(volume) as the first open: in Shared Space
+     * Placement.none() does not follow the head and lands over the board (coordinator, profile D44 correction).
+     */
     fun recall() {
         val nav = navigator ?: return
         Log.i(TAG, "WINDOW recall")
