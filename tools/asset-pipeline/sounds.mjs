@@ -4,7 +4,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const RATE = 22050, PEAK_DB = -3;
+const RATE = 22050, PEAK_DB = -1.2;
+// gentle tanh drive before normalising: louder body (RMS) for short wooden knocks (B20: board sounds were too quiet elsewhere)
+const DRIVE = 2.2;
 const out = process.argv[2];
 fs.mkdirSync(out, { recursive: true });
 let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
@@ -36,7 +38,9 @@ function tone(f0, f1, dur, env, wave = Math.sin) {
   return y;
 }
 const thud = (f = 90, dur = 0.25) => lowpass(mix([tone(f * 1.6, f, dur, (t) => Math.exp(-14 * t) * Math.min(1, t / 0.004)), 0, 1], [lowpass(noise(0.05, (t) => Math.exp(-60 * t)), 800), 0, 0.4]), 1200);
-function normalise(x, db = PEAK_DB) {
+function normalise(x0, db = PEAK_DB) {
+  const p0 = x0.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
+  const x = x0.map((v) => Math.tanh((v / p0) * DRIVE));
   const peak = x.reduce((m, v) => Math.max(m, Math.abs(v)), 0) || 1;
   const k = Math.pow(10, db / 20) / peak;
   const fade = N(0.01);

@@ -33,7 +33,7 @@ class AndroidGameStore(context: Context) : GameStore {
     override fun loadSettings(): Settings = Settings(
         language = runCatching { Language.valueOf(prefs.getString("language", Language.SYSTEM.name)!!) }.getOrDefault(Language.SYSTEM),
         sound = prefs.getBoolean("sound", true),
-        volume = prefs.getInt("volume", 1),
+        volume = prefs.getInt("volume", 2),
         reducedMotion = prefs.getBoolean("reducedMotion", false),
         litAlways = prefs.getBoolean("litAlways", false),
         firstRunDone = prefs.getBoolean("firstRunDone", false),

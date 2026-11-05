@@ -15,7 +15,7 @@ import kotlin.random.Random
  */
 class SoundPlayer(context: Context) {
     @Volatile var enabled: Boolean = true
-    @Volatile var volume: Int = 1
+    @Volatile var volume: Int = 2
 
     private val pool: SoundPool = SoundPool.Builder()
         .setMaxStreams(4)

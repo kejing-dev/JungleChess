@@ -29,7 +29,7 @@ data class Settings(
     val language: Language = Language.SYSTEM,
     val sound: Boolean = true,
     /** 0 soft, 1 medium, 2 loud (three-step slider). */
-    val volume: Int = 1,
+    val volume: Int = 2,
     val reducedMotion: Boolean = false,
     /** Lit movable pieces in every game (default: first game, three moves). */
     val litAlways: Boolean = false,
