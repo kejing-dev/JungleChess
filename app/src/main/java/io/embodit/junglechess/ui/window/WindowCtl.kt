@@ -83,6 +83,17 @@ object WindowCtl {
         runCatching { navigator?.closeWindowContainer(CONTROL, CONTROL_TAG) }
     }
 
+    /** Exit (D26 / D44, QA q1-1): close the control window AND the board volume, so no task stays in recents. */
+    fun closeEverything() {
+        gate.cancel()
+        main.removeCallbacks(watchdog)
+        reopenAfterClose = false
+        val nav = navigator ?: run { Log.w(TAG, "EXIT no navigator"); return }
+        runCatching { nav.closeWindowContainer(CONTROL, CONTROL_TAG) }.onFailure { Log.w(TAG, "EXIT close control: $it") }
+        runCatching { nav.closeWindowContainer() }.onFailure { Log.w(TAG, "EXIT close board: $it") }
+        Log.i(TAG, "EXIT closed both window containers")
+    }
+
     fun onControlCreated() { controlOpen = true; Log.i(TAG, "WINDOW created") }
 
     fun onControlDestroyed() {

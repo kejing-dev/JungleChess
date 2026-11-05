@@ -537,6 +537,6 @@ class GameController(
     fun historySize(): Int = history.size
 
     companion object {
-        const val FLASH_MS = 300L
+        var FLASH_MS = 300L // debug `freeze on` stretches it so the red frame can be photographed (QA k3)
     }
 }

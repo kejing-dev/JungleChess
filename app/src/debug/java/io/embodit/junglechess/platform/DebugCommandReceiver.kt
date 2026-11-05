@@ -61,7 +61,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
             "reduced" -> c.updateSettings { it.copy(reducedMotion = on(1)) }
             "lit" -> c.updateSettings { it.copy(litAlways = on(1)) }
             "pause" -> { DebugHooks.scene?.paused = on(1); c.watchdogMs = if (on(1)) 600_000L else 1500L }
-            "freeze" -> c.watchdogMs = if (on(1)) 600_000L else 1500L
+            "freeze" -> { c.watchdogMs = if (on(1)) 600_000L else 1500L; io.embodit.junglechess.domain.game.GameController.FLASH_MS = if (on(1)) 600_000L else 300L }
             "ftest" -> DebugHooks.scene?.showTest = on(1)
             "light" -> DebugHooks.scene?.setLight(a[1].toFloat())
             "window" -> if (a.getOrNull(1) == "recall") WindowCtl.recall() else WindowCtl.openWindow("debug")

@@ -38,6 +38,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -123,12 +125,12 @@ private fun exitApp(context: Context, graph: Graph) {
     Log.i(TAG, "EXIT release + close windows + finishAndRemoveTask + exitProcess")
     runCatching { graph.controller.saveNow() }
     runCatching { graph.sounds.release() }
-    WindowCtl.closeAll()
+    WindowCtl.closeEverything()
     runCatching {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         am.appTasks.forEach { runCatching { it.finishAndRemoveTask() } }
     }
-    Handler(Looper.getMainLooper()).postDelayed({ exitProcess(0) }, 400)
+    Handler(Looper.getMainLooper()).postDelayed({ exitProcess(0) }, 600)
 }
 
 // ---------------------------------------------------------------------- widgets
@@ -308,6 +310,10 @@ private fun ColumnScope.ResultCard(s: UiState, c: GameController, t: Texts) {
 private fun ColumnScope.NewPage(s: UiState, c: GameController, t: Texts) {
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Title(t.t("新开一盘", "New game"))
+        val running = s.game?.takeIf { it.result == null && it.plies > 0 }
+        if (running != null) {
+            ActionButton(t.t("回到这盘（${t.moveCounter(running.plies, running.level)}）", "Back to this game (${t.moveCounter(running.plies, running.level)})"), { c.setTab(Tab.PLAY) }, Modifier.fillMaxWidth(), icon = R.drawable.ic_play_arrow, tag = "back-to-game")
+        }
         s.savedGame?.let { sg ->
             ActionButton(t.t("继续上一盘（${t.moveCounter(sg.plies, sg.level)}）", "Continue (${t.moveCounter(sg.plies, sg.level)})"), { c.continueSaved() }, Modifier.fillMaxWidth(), icon = R.drawable.ic_play_arrow, tag = "continue")
         }
@@ -328,7 +334,14 @@ private fun ColumnScope.NewPage(s: UiState, c: GameController, t: Texts) {
         Small(t.levelBlurb(s.draftLevel))
     }
     Spacer(Modifier.height(12.dp))
-    ActionButton(t.t("开始", "Start"), { c.newGame() }, Modifier.fillMaxWidth(), icon = R.drawable.ic_play_arrow, primary = true)
+    if (s.confirm == Confirm.NEW_GAME) {
+        // D44 / QA q1-2: a game in progress is never dropped without asking
+        ConfirmCard(t.t("开新的一盘？", "Start a new game?"), t.t("现在这盘就不要了。", "The game in progress will be dropped."), t.t("不", "No"), t.t("开新局", "New game"), { c.askConfirm(null) }, { c.askConfirm(null); c.newGame() })
+    } else {
+        ActionButton(t.t("开始", "Start"), {
+            if (s.game?.let { it.result == null && it.plies > 0 } == true) c.askConfirm(Confirm.NEW_GAME) else c.newGame()
+        }, Modifier.fillMaxWidth(), icon = R.drawable.ic_play_arrow, primary = true)
+    }
 }
 
 @Composable
@@ -383,7 +396,7 @@ private fun WhoEatsWho(t: Texts, modifier: Modifier) {
             drawCircle(JungleColors.Ink, radius = 19.dp.toPx(), center = p, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
             paint.color = 0xFF1F2A1E.toInt()
             val label = if (t.zh) "${names[i].zh}${names[i].rank}" else names[i].en // full names, no letter codes (critic R4)
-            paint.textSize = (if (t.zh) 13f else 7.5f).dp.toPx()
+            paint.textSize = (if (t.zh) 13f else 8.5f).dp.toPx()
             drawContext.canvas.nativeCanvas.drawText(label, p.x, p.y + paint.textSize * 0.35f, paint)
             if (!t.zh) { paint.textSize = 10.dp.toPx(); drawContext.canvas.nativeCanvas.drawText(names[i].rank.toString(), p.x, p.y + 13.dp.toPx(), paint) }
         }
@@ -425,7 +438,7 @@ private fun ColumnScope.SettingsPage(s: UiState, c: GameController, t: Texts, on
             Choice("English", set.language == Language.EN, { c.updateSettings { it.copy(language = Language.EN) } })
         }
     }
-    SettingRow(t.t("音效", "Sound")) { SwitchCell(set.sound) { on -> c.updateSettings { it.copy(sound = on) } } }
+    SettingRow(t.t("音效", "Sound")) { SwitchCell(set.sound, t.t("音效", "Sound")) { on -> c.updateSettings { it.copy(sound = on) } } }
     SettingRow(t.t("音量", "Volume")) {
         // three 48 dp chips instead of a thin slider (critic R3, D44)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -434,14 +447,14 @@ private fun ColumnScope.SettingsPage(s: UiState, c: GameController, t: Texts, on
             }
         }
     }
-    SettingRow(t.t("减少动态", "Reduce motion")) { SwitchCell(set.reducedMotion) { on -> c.updateSettings { it.copy(reducedMotion = on) } } }
-    SettingRow(t.t("一直照亮能动的子", "Always light movable pieces")) { SwitchCell(set.litAlways) { on -> c.updateSettings { it.copy(litAlways = on) } } }
+    SettingRow(t.t("减少动态", "Reduce motion")) { SwitchCell(set.reducedMotion, t.t("减少动态", "Reduce motion")) { on -> c.updateSettings { it.copy(reducedMotion = on) } } }
+    SettingRow(t.t("一直照亮能动的子", "Always light movable pieces")) { SwitchCell(set.litAlways, t.t("一直照亮能动的子", "Always light movable pieces")) { on -> c.updateSettings { it.copy(litAlways = on) } } }
     SettingRow(t.t("窗口找不到了", "Lost this window")) {
         ActionButton(t.t("重开面板", "Reopen panel"), { WindowCtl.recall() }, icon = R.drawable.ic_center_focus, tag = "recall")
     }
     Small(t.t("面板会在棋盘旁重新打开，用系统把手挪到顺手的位置。点棋盘前的席位牌也行。", "The panel reopens beside the board; move it with its system handle. Tapping the seat card does the same."))
     Spacer(Modifier.height(6.dp))
-    Small(t.t("关于 · 版本 0.1.1 · 许可：Tripo 模型 / Material Icons（Apache-2.0）/ 合成音效", "About · v0.1.1 · Licences: Tripo models / Material Icons (Apache-2.0) / synthesised sounds"))
+    Small(t.t("关于 · 版本 0.1.2 · 许可：Tripo 模型 / Material Icons（Apache-2.0）/ 合成音效", "About · v0.1.2 · Licences: Tripo models / Material Icons (Apache-2.0) / synthesised sounds"))
     Spacer(Modifier.weight(1f))
     if (s.confirm == Confirm.EXIT) {
         ConfirmCard(t.t("退出斗兽棋？", "Quit Jungle Chess?"), t.t("棋局会存着，下次接着下。", "Your game is saved for next time."), t.t("取消", "Cancel"), t.t("退出", "Quit"), { c.askConfirm(null) }, onExit)
@@ -452,8 +465,8 @@ private fun ColumnScope.SettingsPage(s: UiState, c: GameController, t: Texts, on
 
 /** A Switch inside a 48 dp tap cell, centred on the row (D44: measure the control, not the row). */
 @Composable
-private fun SwitchCell(checked: Boolean, onChange: (Boolean) -> Unit) {
-    Box(Modifier.size(width = 64.dp, height = 48.dp), contentAlignment = Alignment.Center) {
+private fun SwitchCell(checked: Boolean, label: String, onChange: (Boolean) -> Unit) {
+    Box(Modifier.size(width = 64.dp, height = 48.dp).semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
         Switch(checked = checked, onCheckedChange = onChange)
     }
 }

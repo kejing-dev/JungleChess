@@ -74,7 +74,7 @@ data class Anim(val token: Int, val move: Move, val before: Position, val after:
 /** A red frame on [square] for 300 ms with the reason in the status line (T2). */
 data class Flash(val square: Int, val token: Int)
 
-enum class Confirm { RESIGN, RESTART, EXIT }
+enum class Confirm { RESIGN, RESTART, EXIT, NEW_GAME }
 
 data class UiState(
     val phase: Phase = Phase.LOADING,

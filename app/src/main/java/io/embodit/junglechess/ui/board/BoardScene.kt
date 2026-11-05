@@ -312,10 +312,11 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
     private fun settlePieces(s: UiState, glide: Boolean) {
         val game = s.game
         val r = res ?: return
-        if (game == null) { pieces.forEach { it?.holder?.enabled = false }; return }
-        val pos = game.position
+        // no game yet (first run: rules / new-game page): show the opening set up (design S01, QA k2)
+        val pos = game?.position ?: io.embodit.junglechess.domain.model.Position.start()
+        val captured = game?.captured ?: emptyList()
         val trayIndex = HashMap<Side, Int>()
-        for (id in game.captured) {
+        for (id in captured) {
             val pv = pieces[id] ?: continue
             val capturer = Pieces.side(id).other
             val k = trayIndex.getOrDefault(capturer, 0)
@@ -328,7 +329,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
         }
         for (id in 0 until Pieces.COUNT) {
             val pv = pieces[id] ?: continue
-            if (id in game.captured) continue
+            if (id in captured) continue
             val sq = pos.squareOf(id)
             if (sq < 0) { pv.holder.enabled = false; continue }
             val side = Pieces.side(id)

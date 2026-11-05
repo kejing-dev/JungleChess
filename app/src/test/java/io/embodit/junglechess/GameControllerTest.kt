@@ -141,6 +141,20 @@ class GameControllerTest {
         assertTrue("elapsed ${c2.state.value.game!!.elapsedMs}", c2.state.value.game!!.elapsedMs < 1_000)
     }
 
+    @Test fun newGameWhilePlayingAsksFirst() = scope.run {
+        // QA q1-2: the page asks (Confirm.NEW_GAME) before calling newGame; the controller keeps the game until then
+        val c = controller()
+        c.newGame(SideChoice.RED, 1)
+        c.tap(Sq.parse("g7")!!); c.tap(Sq.parse("g6")!!); c.finishAnim()
+        advanceUntilIdle()
+        c.setTab(Tab.NEW)
+        c.askConfirm(io.embodit.junglechess.domain.game.Confirm.NEW_GAME)
+        assertEquals("S13", c.state.value.stateCode)
+        assertEquals(2, c.state.value.game!!.plies)
+        c.askConfirm(null)
+        assertEquals(2, c.state.value.game!!.plies)
+    }
+
     @Test fun saveRoundTrip() = scope.run {
         val store = FakeStore()
         val c = controller(store)

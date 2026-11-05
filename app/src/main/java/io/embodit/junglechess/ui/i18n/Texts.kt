@@ -104,7 +104,7 @@ class Texts(val zh: Boolean) {
     fun seatCard(thinking: Boolean, humanSide: Side, toMove: Side?, over: Boolean): String = when {
         over -> t("结束 · Game over", "Game over")
         thinking -> t("对方在想 · Thinking", "Thinking…")
-        toMove == null -> t("摆棋中 · Setting up", "Setting up…")
+        toMove == null -> t("去开一局 · Start a game", "Start a game")
         toMove == Side.RED -> t("轮到红 · Red to move", "Red to move")
         else -> t("轮到蓝 · Blue to move", "Blue to move")
     }
