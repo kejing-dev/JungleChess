@@ -131,6 +131,16 @@ class GameControllerTest {
         assertEquals(Side.RED, c.state.value.game!!.result!!.winner)
     }
 
+    @Test fun elapsedCountsOnlyPlayingTime() = scope.run {
+        val store = FakeStore()
+        val c = controller(store)
+        c.newGame(SideChoice.RED, 1)
+        scope.testScheduler.advanceTimeBy(3_000_000) // the app sat idle / closed for 50 minutes
+        val c2 = controller(store)                 // restored
+        c2.tap(Sq.parse("g7")!!); c2.tap(Sq.parse("g6")!!)
+        assertTrue("elapsed ${c2.state.value.game!!.elapsedMs}", c2.state.value.game!!.elapsedMs < 1_000)
+    }
+
     @Test fun saveRoundTrip() = scope.run {
         val store = FakeStore()
         val c = controller(store)

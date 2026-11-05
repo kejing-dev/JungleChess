@@ -382,10 +382,10 @@ private fun WhoEatsWho(t: Texts, modifier: Modifier) {
             drawCircle(JungleColors.Wood, radius = 19.dp.toPx(), center = p)
             drawCircle(JungleColors.Ink, radius = 19.dp.toPx(), center = p, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
             paint.color = 0xFF1F2A1E.toInt()
-            val label = if (t.zh) "${names[i].zh}${names[i].rank}" else "${names[i].en.take(4)}"
-            paint.textSize = (if (t.zh) 13 else 10).dp.toPx()
+            val label = if (t.zh) "${names[i].zh}${names[i].rank}" else names[i].en // full names, no letter codes (critic R4)
+            paint.textSize = (if (t.zh) 13f else 7.5f).dp.toPx()
             drawContext.canvas.nativeCanvas.drawText(label, p.x, p.y + paint.textSize * 0.35f, paint)
-            if (!t.zh) { paint.textSize = 9.dp.toPx(); drawContext.canvas.nativeCanvas.drawText(names[i].rank.toString(), p.x, p.y + 13.dp.toPx(), paint) }
+            if (!t.zh) { paint.textSize = 10.dp.toPx(); drawContext.canvas.nativeCanvas.drawText(names[i].rank.toString(), p.x, p.y + 13.dp.toPx(), paint) }
         }
     }
 }

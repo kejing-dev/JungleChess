@@ -98,6 +98,7 @@ class GameController(
     private fun restore(game: Game, hist: List<Game>) {
         history = ArrayList(hist)
         redo.clear()
+        turnStartedAt = now() // time away from the app is not playing time
         _state.update { it.copy(game = game, phase = Phase.IDLE, tab = Tab.PLAY, restored = true, line = Line(LineKey.RESTORED), savedGame = null) }
         log("GAME restored plies=${game.plies} toMove=${game.position.toMove}")
         afterTurn(fromRestore = true)
@@ -520,6 +521,7 @@ class GameController(
     fun setup(pos: Position, human: Side = Side.RED, level: Int = s.game?.level ?: 1) {
         cancelAi(); cancelHint()
         history = ArrayList(); redo.clear()
+        turnStartedAt = now()
         _state.update { it.copy(game = Game(pos, human, level), phase = Phase.IDLE, tab = Tab.PLAY, anim = null, selected = -1, targets = emptyList(), hint = null, restored = false, confirm = null) }
         save()
         afterTurn()

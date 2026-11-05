@@ -1,6 +1,6 @@
 # 斗兽棋 Jungle Chess — project guidance
 
-Jungle Chess for PICO OS 6 Shared Space, Spatial SDK BOM 6.1.9, package `io.embodit.junglechess`, v0.1.0.
+Jungle Chess for PICO OS 6 Shared Space, Spatial SDK BOM 6.1.9, package `io.embodit.junglechess`, v0.1.1 (critic fixes on v0.1.0: `apps/jungle-chess/critic/build-v0.1.0.md`).
 Design: `spatial-app-factory/apps/jungle-chess/design-package.json` (v1 = everything outside `v2[]`, profile A12),
 sample `apps/jungle-chess/sample.html`. Started from Cloud Air (kejing-dev/CloudAir) skeleton A.
 
@@ -9,7 +9,7 @@ sample `apps/jungle-chess/sample.html`. Started from Cloud Air (kejing-dev/Cloud
 - **Board volume** (default container `JungleBoard`, Volumetric 0.56 × 0.36 × 0.72 m, fixed world scale, no base
   panel): grass terrain board (`assets/models/board.glb`), 16 Tripo wooden animals on team bases, two trays in front,
   three attachment cards (seat card, two capture counts). No buttons in the volume.
-- **Control window** (`JungleControl`, Planar 560 × 440 dp, `Placement.right(board)`): system TabBar pages
+- **Control window** (`JungleControl`, Planar 560 × 640 dp so the tallest page fits without scrolling, `Placement.right(board)` for first open and every reopen): system TabBar pages
   对局 / 新局 / 规则 / 设置; confirmations and the result card open inside the page. Drag / close = system controls.
 
 ## Code map
@@ -18,11 +18,11 @@ sample `apps/jungle-chess/sample.html`. Started from Cloud Air (kejing-dev/Cloud
 | --- | --- |
 | `domain/model/Jungle.kt` | Side, Animal, Sq (0..62 = (row-1)*7+col), Terrain (rivers b4–c6 / e4–f6, traps, dens), Position (stable piece ids 0..15), Move |
 | `domain/rules/JungleRules.kt` | legal moves, leaps, captures, status, `whyIllegal`, `jumpBlockers`, `denThreats`, perft |
-| `domain/engine/Engine.kt` | α-β five levels (L1 depth 1 + safe filter + 50 % wander, L2 depth 2 top-3, L3 300 ms, L4 800 ms, L5 2 s / depth ≤ 7) |
+| `domain/engine/Engine.kt` | α-β five levels (L1 depth 1, material only, safe filter, 60 % wander; L2 depth 2 top-3; L3 depth 3 / 300 ms; L4 depth 4 / 800 ms; L5 depth ≤ 7 / 2 s), repetition-aware; one instance per search |
 | `domain/game/` | `GameController` (single source of truth: input, commit-then-animate, watchdog, AI, undo/redo, hint, save), `GameState` (UiState, phases S00–S17, save codec), `MotionPlan` |
 | `ui/board/` | `BoardLayout` (all metres; D35/D16 tests use it), `BoardScene` (entities, animations, marks, drag), `SceneResources`, `BoardTextures`, `BoardView` (SpatialView, taps, drags, cards, ECS system) |
 | `ui/control/ControlScreen.kt` | the four pages |
-| `ui/window/` | `WindowCtl` (open / recall / reopen), `LevelGate` (D9 gate; Shared Space has no head pose → no-head fallback 600 ms) |
+| `ui/window/` | `WindowCtl` (open / reopen beside the board; also a pinch on the seat card), `LevelGate` (D9 gate; Shared Space has no head pose → no-head fallback 600 ms) |
 | `ui/i18n/Texts.kt` | all copy zh / en |
 | `tools/asset-pipeline/` | `animals.mjs` (Tripo → ≤ 2k tris, calibrated), `board.mjs` (board / base / tray GLB), `sounds.mjs`, `icon.mjs`, `preview.mjs` (software renderer) — `npm install` there first |
 
@@ -82,3 +82,9 @@ Log tag `JungleChess`: `GAME`, `TAB`, `SELECT`, `ILLEGAL`, `MOVE`, `ANIM`, `AI`,
   turned 270°; everything faces −Z after calibration. Heights are footprint-limited (≤ 5.8 cm long, elephant 6.0).
 - `PhysicallyBasedMaterial` has no UV transform, so the river is static (ripple ring on a rat entering instead).
 - Shared Space gives no head pose; `LevelGate` exists but always ends on its no-head path.
+- `Placement.none()` does not follow the head in Shared Space (it reopens at the world's initial front, over the board), so
+  [重开面板] reopens with the same `Placement.right(volume)`.
+- Animals: design heights × one factor 0.803 (rank order = height order); the rank reads from a team-coloured tag on the
+  user's edge of every base (`BoardLayout.TAG_*`).
+- Draw: the same position (side to move included) a third time (`WinReason.REPETITION`); the engine scores repeats as draws.
+- Engine tests print `STRENGTH …` with draws / undecided counts; thresholds are the design's (≥ 0.65 adjacent, ≤ 0.60 beginner vs random, ≥ 0.95 master vs beginner).
