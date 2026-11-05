@@ -1,0 +1,154 @@
+[
+ {
+  "name": "elephant",
+  "trianglesBefore": 1940672,
+  "triangles": 1940,
+  "sloppy": true,
+  "yawDeg": 180,
+  "scale": 0.06144,
+  "heightM": 0.0454,
+  "widthM": 0.0427,
+  "lengthM": 0.06,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.055,
+  "heightLimitedByFootprint": true,
+  "kb": 137
+ },
+ {
+  "name": "lion",
+  "trianglesBefore": 1939288,
+  "triangles": 1938,
+  "sloppy": true,
+  "yawDeg": 180,
+  "scale": 0.05946,
+  "heightM": 0.0439,
+  "widthM": 0.0327,
+  "lengthM": 0.058,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.052,
+  "heightLimitedByFootprint": true,
+  "kb": 135
+ },
+ {
+  "name": "tiger",
+  "trianglesBefore": 1961818,
+  "triangles": 1940,
+  "sloppy": true,
+  "yawDeg": 180,
+  "scale": 0.05929,
+  "heightM": 0.0394,
+  "widthM": 0.0324,
+  "lengthM": 0.058,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.05,
+  "heightLimitedByFootprint": true,
+  "kb": 140
+ },
+ {
+  "name": "leopard",
+  "trianglesBefore": 1943316,
+  "triangles": 1928,
+  "sloppy": true,
+  "yawDeg": 270,
+  "scale": 0.05935,
+  "heightM": 0.0371,
+  "widthM": 0.0383,
+  "lengthM": 0.058,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.046,
+  "heightLimitedByFootprint": true,
+  "kb": 143
+ },
+ {
+  "name": "wolf",
+  "trianglesBefore": 1893235,
+  "triangles": 1940,
+  "sloppy": true,
+  "yawDeg": 180,
+  "scale": 0.05785,
+  "heightM": 0.043,
+  "widthM": 0.0248,
+  "lengthM": 0.0566,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.043,
+  "heightLimitedByFootprint": false,
+  "kb": 119
+ },
+ {
+  "name": "dog",
+  "trianglesBefore": 1981724,
+  "triangles": 1937,
+  "sloppy": true,
+  "yawDeg": 180,
+  "scale": 0.04775,
+  "heightM": 0.04,
+  "widthM": 0.0263,
+  "lengthM": 0.0467,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.04,
+  "heightLimitedByFootprint": false,
+  "kb": 126
+ },
+ {
+  "name": "cat",
+  "trianglesBefore": 1941570,
+  "triangles": 1940,
+  "sloppy": true,
+  "yawDeg": 270,
+  "scale": 0.05207,
+  "heightM": 0.037,
+  "widthM": 0.0322,
+  "lengthM": 0.051,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.037,
+  "heightLimitedByFootprint": false,
+  "kb": 125
+ },
+ {
+  "name": "rat",
+  "trianglesBefore": 1911384,
+  "triangles": 1940,
+  "sloppy": true,
+  "yawDeg": 180,
+  "scale": 0.05938,
+  "heightM": 0.0319,
+  "widthM": 0.03,
+  "lengthM": 0.058,
+  "bottomCentre": [
+   0,
+   0,
+   0
+  ],
+  "targetHeightM": 0.032,
+  "heightLimitedByFootprint": true,
+  "kb": 126
+ }
+]
