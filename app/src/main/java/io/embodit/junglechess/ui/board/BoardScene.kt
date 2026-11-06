@@ -106,6 +106,26 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
 
     val hasResources get() = res != null
 
+    private var content: com.pico.spatial.core.container.SpatialViewContent? = null
+    fun attachContent(c: com.pico.spatial.core.container.SpatialViewContent) { content = c }
+
+    /**
+     * A hit point in the SpatialView's local px space -> the square under it (board-surface hits that did not land on a
+     * pad collider, e.g. eye-hand on the turf mesh). -1 when it is not over a square.
+     */
+    fun squareAtViewPoint(p: com.pico.spatial.ui.geometry.Offset3D): Int {
+        val c = content ?: return -1
+        val v = runCatching {
+            c.convertPosition(Vector3(p.x, p.y, p.z), com.pico.spatial.core.ecs.ViewCoordinateSpace.Local, c.localSpatialCoordinateSpace)
+        }.getOrElse { log("INPUT convert failed $it"); return -1 }
+        val b = BoardLayout.toBoard(P3(v.x, v.y, v.z))
+        val col = Math.round(b.x / BoardLayout.PITCH + 3f)
+        val row = Math.round(b.z / BoardLayout.PITCH + 5f)
+        val ok = col in 0 until Sq.COLS && row in 1..Sq.ROWS && kotlin.math.abs(b.y) < 0.03f
+        log("INPUT board point view=(${"%.0f".format(p.x)}, ${"%.0f".format(p.y)}, ${"%.0f".format(p.z)}) volume=(${"%.3f".format(v.x)}, ${"%.3f".format(v.y)}, ${"%.3f".format(v.z)}) board=(${"%.3f".format(b.x)}, ${"%.3f".format(b.y)}, ${"%.3f".format(b.z)}) -> ${if (ok) Sq.name(Sq.of(col, row)) else "off"}")
+        return if (ok) Sq.of(col, row) else -1
+    }
+
     // ------------------------------------------------------------------ build
 
     fun provide(r: SceneResources) {
@@ -149,6 +169,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
                 transform().setPosition(Vector3(p.x, 0.002f, p.z))
                 components.set(CollisionComponent(listOf(r.padShape), r.physics))
                 components.set(InteractableComponent())
+                components.set(HoverEffectComponent())
             }
             boardRoot.addChild(pad)
             pads["sq:$sq"] = sq

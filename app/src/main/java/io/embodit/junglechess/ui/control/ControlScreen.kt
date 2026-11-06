@@ -454,7 +454,7 @@ private fun ColumnScope.SettingsPage(s: UiState, c: GameController, t: Texts, on
     }
     Small(t.t("面板会在棋盘旁重新打开，用系统把手挪到顺手的位置。点棋盘前的席位牌也行。", "The panel reopens beside the board; move it with its system handle. Tapping the seat card does the same."))
     Spacer(Modifier.height(6.dp))
-    Small(t.t("关于 · 版本 0.1.2 · 许可：Tripo 模型 / Material Icons（Apache-2.0）/ 合成音效", "About · v0.1.2 · Licences: Tripo models / Material Icons (Apache-2.0) / synthesised sounds"))
+    Small(t.t("关于 · 版本 0.1.3 · 许可：Tripo 模型 / Material Icons（Apache-2.0）/ 合成音效", "About · v0.1.3 · Licences: Tripo models / Material Icons (Apache-2.0) / synthesised sounds"))
     Spacer(Modifier.weight(1f))
     if (s.confirm == Confirm.EXIT) {
         ConfirmCard(t.t("退出斗兽棋？", "Quit Jungle Chess?"), t.t("棋局会存着，下次接着下。", "Your game is saved for next time."), t.t("取消", "Cancel"), t.t("退出", "Quit"), { c.askConfirm(null) }, onExit)

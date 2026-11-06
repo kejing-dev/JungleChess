@@ -20,6 +20,7 @@ class JungleApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        io.embodit.junglechess.ui.board.input.BoardInputLog.attach(this)
         graph = Graph(this)
         launch(::mainApp)
     }
@@ -37,7 +38,7 @@ class Graph(context: Context) {
         compute = Dispatchers.Default,
         store = store,
         now = { SystemClock.elapsedRealtime() },
-        log = { Log.i(TAG, it) },
+        log = { io.embodit.junglechess.ui.board.input.BoardInputLog.write(TAG, it) },
         cue = { c, a -> sounds.play(c, a) },
     )
     val window = WindowCtl
