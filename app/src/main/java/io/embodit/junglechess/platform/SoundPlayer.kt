@@ -24,7 +24,6 @@ class SoundPlayer(context: Context) {
     private val ids = HashMap<String, Int>()
     private val loaded = HashSet<Int>()
     private val random = Random(System.nanoTime())
-    private var lastPlace = -1
 
     init {
         pool.setOnLoadCompleteListener { _, id, status -> if (status == 0) synchronized(loaded) { loaded += id } }
@@ -35,16 +34,14 @@ class SoundPlayer(context: Context) {
         Log.i(TAG, "SOUNDS loaded ${ids.size}")
     }
 
+    private val lastVariant = HashMap<String, Int>()
+
+    /** Every event plays one of its 1–4 variants (`name`, `name_2` …) without repeating back to back, ±5 % pitch. */
     fun play(cue: Cue, animal: Animal?) {
         if (!enabled) return
-        val name = when (cue) {
+        val base = when (cue) {
             Cue.SELECT -> "select"
-            Cue.PLACE -> {
-                var v = random.nextInt(3)
-                if (v == lastPlace) v = (v + 1) % 3
-                lastPlace = v
-                if (v == 0) "place" else "place_${v + 1}"
-            }
+            Cue.PLACE -> "place"
             Cue.CAPTURE -> "cry_${(animal ?: Animal.RAT).asset}"
             Cue.TOPPLE -> "topple"
             Cue.JUMP -> "jump"
@@ -56,11 +53,16 @@ class SoundPlayer(context: Context) {
             Cue.WIN -> "win"
             Cue.LOSE -> "lose"
         }
-        val id = ids[name] ?: return
+        val variants = listOf(base, "${base}_2", "${base}_3", "${base}_4").filter { it in ids }
+        if (variants.isEmpty()) return
+        var v = random.nextInt(variants.size)
+        if (variants.size > 1 && v == lastVariant[base]) v = (v + 1) % variants.size
+        lastVariant[base] = v
+        val id = ids.getValue(variants[v])
         if (synchronized(loaded) { id !in loaded }) return
-        val base = when (volume) { 0 -> 0.35f; 1 -> 0.65f; else -> 1f }
-        val rate = if (cue == Cue.PLACE || cue == Cue.SELECT) 0.93f + random.nextFloat() * 0.14f else 1f
-        pool.play(id, base, base, 1, 0, rate)
+        val gain = when (volume) { 0 -> 0.35f; 1 -> 0.65f; else -> 1f }
+        val rate = 0.95f + random.nextFloat() * 0.10f
+        pool.play(id, gain, gain, 1, 0, rate)
     }
 
     fun release() = pool.release()

@@ -549,6 +549,27 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
 
     val dragging: Boolean get() = dragId >= 0
 
+    // ---- hover (D50): a faint frame on the square under the gaze / ray; expires 250 ms after the last update ----
+    private var hoverMark: ModelEntity? = null
+    private var hoverSq = -1
+    private var hoverAge = 0f
+
+    fun setHover(sq: Int) {
+        hoverAge = 0f
+        if (sq == hoverSq) return
+        hoverSq = sq
+        val r = res ?: return
+        val e = hoverMark ?: ModelEntity(r.markCell, r.hoverFrame).apply {
+            setName("mark:hover")
+            transform().setQuaternion(Quat(Vector3(1f, 0f, 0f), (-PI / 2).toFloat()))
+            boardRoot.addChild(this)
+        }.also { hoverMark = it }
+        if (sq < 0) { e.enabled = false; return }
+        val p = BoardLayout.square(sq)
+        e.transform().setPosition(Vector3(p.x, markY(sq) + 0.0009f, p.z))
+        e.enabled = true
+    }
+
     // ------------------------------------------------------------------ per frame
 
     fun onFrame(dt: Float) {
@@ -567,6 +588,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             pv.holder.transform().setPosition(v(p))
             if (pv.glideT >= 1f) pv.glideTo = null
         }
+        if (hoverSq >= 0) { hoverAge += step; if (hoverAge > 0.25f) setHover(-1) }
         // ripple: expand and fade over 400 ms
         if (rippleT >= 0f) {
             rippleT += step

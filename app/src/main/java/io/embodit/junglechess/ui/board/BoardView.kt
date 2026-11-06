@@ -144,6 +144,16 @@ fun BoardView() {
                 override fun onDragMove(totalM: Offset3M) { if (scene.dragging) scene.dragTo(P3(totalM.x, totalM.y, totalM.z)) }
                 override fun onDragEnd() { if (scene.dragging) controller.dragEnd(scene.endDrag()) }
                 override fun onDragCancel() { if (scene.dragging) { scene.endDrag(); controller.dragEnd(-1) } }
+
+                // D50: light hover highlight on the square under the gaze / ray (hint only, no state change)
+                override fun onHover(target: BoardTarget?, source: InputSource) {
+                    val sq = when (target) {
+                        is BoardTarget.Square -> target.sq
+                        is BoardTarget.Piece -> current.game?.position?.squareOf(target.id) ?: io.embodit.junglechess.domain.model.Position.start().squareOf(target.id)
+                        else -> -1
+                    }
+                    scene.setHover(sq)
+                }
             }),
         attachments = {
             AttachmentPanel(id = "seat") { SeatCard(mToDp(BoardLayout.SEAT_W), mToDp(BoardLayout.SEAT_H)) }

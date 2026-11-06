@@ -59,6 +59,7 @@ internal class SceneResources private constructor() {
     lateinit var alertRing: Material
     lateinit var litRing: Material
     lateinit var selRing: Material
+    lateinit var hoverFrame: Material
     lateinit var crossMat: Material
     lateinit var ripple: UnlitMaterial
     lateinit var filesMat: Material
@@ -112,6 +113,7 @@ internal class SceneResources private constructor() {
                 "alertRing" to tex { BoardTextures.ring(0xFFE0453A.toInt(), 0.12f) },
                 "lit" to tex { BoardTextures.ring(0xCCEFFFD8.toInt(), 0.09f) },
                 "sel" to tex { BoardTextures.ring(0xF2FFFFFF.toInt(), 0.1f) },
+                "hover" to tex { BoardTextures.frame(0x99FFFFFF.toInt()) },
                 "cross" to tex { BoardTextures.cross(0xFFE0453A.toInt()) },
                 "ripple" to tex { BoardTextures.ring(0xCCFFFFFF.toInt(), 0.06f) },
                 "files" to tex { BoardTextures.files() },
@@ -166,6 +168,7 @@ internal class SceneResources private constructor() {
             r.alertRing = unlit(tx.getValue("alertRing")).keep()
             r.litRing = unlit(tx.getValue("lit")).keep()
             r.selRing = unlit(tx.getValue("sel")).keep()
+            r.hoverFrame = unlit(tx.getValue("hover")).keep()
             r.crossMat = unlit(tx.getValue("cross")).keep()
             r.ripple = unlit(tx.getValue("ripple")).keep()
             r.filesMat = unlit(tx.getValue("files")).keep()
