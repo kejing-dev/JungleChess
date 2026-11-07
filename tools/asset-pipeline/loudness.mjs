@@ -39,7 +39,10 @@ const buf = Buffer.alloc(44 + mix.length * 2);
 buf.write('RIFF', 0); buf.writeUInt32LE(36 + mix.length * 2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12);
 buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(RATE, 24);
 buf.writeUInt32LE(RATE * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write('data', 36); buf.writeUInt32LE(mix.length * 2, 40);
-for (let i = 0; i < mix.length; i++) buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, mix[i] * lim)) * 32767), 44 + i * 2);
+// +-1 LSB TPDF dither and a -2 LSB offset (both ~ -84 dBFS, inaudible): digital silence is all-zero bytes, and the factory's gitsync.restore_zeroed treats a
+// tracked file that is > 50 % NUL as a torn write and checks the HEAD version back out (it ate the v0.1.4 render twice).
+let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+for (let i = 0; i < mix.length; i++) buf.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(Math.max(-1, Math.min(1, mix[i] * lim)) * 32767 + (r() - r()) * 1.5 - 2))), 44 + i * 2);
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, buf);
 console.log(`${out}: ${LEN} s, peak ${(20 * Math.log10(peak * lim)).toFixed(1)} dBFS, rms ${(20 * Math.log10(Math.sqrt(sum / mix.length) * lim)).toFixed(1)} dBFS, clamped ${clamped} samples (${(clamped / RATE * 1000).toFixed(1)} ms)`);
