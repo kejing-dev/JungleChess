@@ -40,7 +40,7 @@ class SoundPlayer(context: Context) {
     fun play(cue: Cue, animal: Animal?) {
         if (!enabled) return
         val base = when (cue) {
-            Cue.SELECT -> "select"
+            Cue.SELECT -> return // D51: select / preselect / hover are silent by default
             Cue.PLACE -> "place"
             Cue.CAPTURE -> "cry_${(animal ?: Animal.RAT).asset}"
             Cue.TOPPLE -> "topple"

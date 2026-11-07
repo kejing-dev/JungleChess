@@ -119,23 +119,18 @@ fun BoardView() {
         modifier = Modifier
             .fillMaxSize()
             // D50 factory input template: hand ray, controller ray and eye-hand all arrive here (see ui/board/input)
-            .boardInput(BoardTargets, object : BoardInputListener<BoardTarget> {
+            .boardInput(BoardTargets, (object : BoardInputListener<BoardTarget> {
                 override fun onTap(target: BoardTarget?, source: InputSource, position: Offset3D?) {
                     // S10: with the control window closed, the first pinch only brings it back
                     if (!WindowCtl.controlOpen) { WindowCtl.openWindow("tap"); return }
-                    val sq = when (target) {
-                        is BoardTarget.Square -> target.sq
-                        is BoardTarget.Piece -> current.game?.position?.squareOf(target.id) ?: -1
-                        BoardTarget.Board -> position?.let { scene.squareAtViewPoint(it) } ?: -1
-                        null -> -1
-                    }
+                    val sq = BoardTargets.squareFor(target, current.game?.position) { position?.let { scene.squareAtViewPoint(it) } ?: -1 }
                     io.embodit.junglechess.ui.board.input.BoardInputLog.write(TAG, "INPUT tap src=${source.label} target=$target -> square=${if (sq >= 0) io.embodit.junglechess.domain.model.Sq.name(sq) else "-"}")
                     if (sq >= 0) controller.tap(sq) else controller.tapNothing()
                 }
 
                 override fun onDragStart(target: BoardTarget, source: InputSource): Boolean {
                     val id = (target as? BoardTarget.Piece)?.id ?: return false
-                    val sq = current.game?.position?.squareOf(id) ?: return false
+                    val sq = BoardTargets.squareFor(target, current.game?.position) { -1 }
                     if (sq < 0 || !WindowCtl.controlOpen || !controller.dragStart(sq)) return false
                     scene.beginDrag(id)
                     return true
@@ -147,14 +142,10 @@ fun BoardView() {
 
                 // D50: light hover highlight on the square under the gaze / ray (hint only, no state change)
                 override fun onHover(target: BoardTarget?, source: InputSource) {
-                    val sq = when (target) {
-                        is BoardTarget.Square -> target.sq
-                        is BoardTarget.Piece -> current.game?.position?.squareOf(target.id) ?: io.embodit.junglechess.domain.model.Position.start().squareOf(target.id)
-                        else -> -1
-                    }
+                    val sq = BoardTargets.squareFor(target, current.game?.position ?: io.embodit.junglechess.domain.model.Position.start()) { -1 }
                     scene.setHover(sq)
                 }
-            }),
+            }).also { DebugHooks.input = it }),
         attachments = {
             AttachmentPanel(id = "seat") { SeatCard(mToDp(BoardLayout.SEAT_W), mToDp(BoardLayout.SEAT_H)) }
             AttachmentPanel(id = "countRed") { CountCard(Side.RED, mToDp(BoardLayout.COUNT_W), mToDp(BoardLayout.COUNT_H)) }
@@ -221,6 +212,8 @@ private fun CountCard(capturer: Side, w: Dp, h: Dp) {
 /** Hooks for the debug broadcast (debug build only uses them). */
 internal object DebugHooks {
     @Volatile var scene: BoardScene? = null
+    /** The same listener the input template calls (debug replay feeds it real scene entities). */
+    @Volatile var input: BoardInputListener<BoardTarget>? = null
 }
 
 /** What a pinch / trigger can land on: a square pad, a piece (any of its meshes), or the board surface. */
@@ -230,15 +223,33 @@ sealed interface BoardTarget {
     data object Board : BoardTarget
 }
 
-/** Entity names set by BoardScene: `sq:<n>` pads, `piece:<id>` holders (base / animal meshes hang below), `terrain`. */
+/** Every entity name BoardScene gives a tap target. Pure, so the name -> target -> square round trip is unit-tested. */
+object BoardNames {
+    const val TERRAIN = "terrain"
+    fun piece(index: Int) = "piece:$index"
+    fun hit(index: Int) = "hit:$index"
+    fun vis(index: Int) = "vis:$index"
+    fun square(sq: Int) = "sq:$sq"
+    fun dot(sq: Int) = "dot:$sq"
+}
+
+/** Resolves `sq:<n>` pads, `piece:` / `hit:<piece index>` (base / animal meshes hang below), `terrain`. */
 object BoardTargets : TargetResolver<BoardTarget> {
-    override fun resolve(entity: Entity): BoardTarget? {
-        val n = entity.getName()
-        return when {
-            n.startsWith("sq:") -> n.removePrefix("sq:").toIntOrNull()?.let { BoardTarget.Square(it) }
-            n.startsWith("piece:") || n.startsWith("hit:") -> n.substringAfter(':').toIntOrNull()?.let { BoardTarget.Piece(it) }
-            n == "terrain" -> BoardTarget.Board
-            else -> null
-        }
+    override fun resolve(entity: Entity): BoardTarget? = resolveName(entity.getName())
+
+    fun resolveName(n: String): BoardTarget? = when {
+        n.startsWith("sq:") -> n.removePrefix("sq:").toIntOrNull()?.takeIf { it in 0 until io.embodit.junglechess.domain.model.Sq.COUNT }?.let { BoardTarget.Square(it) }
+        // a piece index out of 0..15 is a naming bug (v0.1.3: ECS entity id) -- resolve to nothing so it shows in the log
+        n.startsWith("piece:") || n.startsWith("hit:") -> n.substringAfter(':').toIntOrNull()?.takeIf { it in 0 until io.embodit.junglechess.domain.model.Pieces.COUNT }?.let { BoardTarget.Piece(it) }
+        n == BoardNames.TERRAIN -> BoardTarget.Board
+        else -> null
+    }
+
+    /** Target -> square: a pad is its square, a piece is the square it stands on now, the board asks [boardPoint]. */
+    fun squareFor(target: BoardTarget?, position: io.embodit.junglechess.domain.model.Position?, boardPoint: () -> Int): Int = when (target) {
+        is BoardTarget.Square -> target.sq
+        is BoardTarget.Piece -> position?.squareOf(target.id) ?: -1
+        BoardTarget.Board -> boardPoint()
+        null -> -1
     }
 }

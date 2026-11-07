@@ -61,8 +61,13 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
     private var animalsInstalled = false
 
     private inner class PieceView(val id: Int) {
-        val holder = Entity().apply { setName("piece:$id") }
-        val hit = Entity().apply { setName("hit:$id") }
+        // v0.1.3 bug: inside `Entity().apply {}` a bare `id` is Entity.id (the ECS entity id, e.g. 122), not the
+        // piece index -> taps resolved to Piece(122) -> no square. Names come from BoardNames with the piece index.
+        val holder = Entity().apply { setName(BoardNames.piece(this@PieceView.id)) }
+        val hit = Entity().apply { setName(BoardNames.hit(this@PieceView.id)) }
+        /** Visible meshes (base, animal) hang under the collider so the system hover lights them (D51 hover rule). */
+        val vis = Entity().apply { setName(BoardNames.vis(this@PieceView.id)) }
+        var hittable = true
         var base: Entity? = null
         var animal: Entity? = null
         var ringPart: Entity? = null
@@ -152,7 +157,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
         val t0 = android.os.SystemClock.elapsedRealtime()
         root.addChild(boardRoot)
         boardRoot.transform().setPosition(v(BoardLayout.toVolume(P3(0f, 0f, 0f)))).setQuaternion(Quat(Vector3(1f, 0f, 0f), BoardLayout.TILT))
-        boardModel?.let { it.setName("terrain"); boardRoot.addChild(it) }
+        boardModel?.let { it.setName(BoardNames.TERRAIN); boardRoot.addChild(it) }
         // warm key light from upper left behind the user (B24: natural, not flat, not blown out)
         light = Entity().apply {
             setName("keyLight")
@@ -165,14 +170,21 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
         for (sq in 0 until Sq.COUNT) {
             val p = BoardLayout.square(sq)
             val pad = Entity().apply {
-                setName("sq:$sq")
+                setName(BoardNames.square(sq))
                 transform().setPosition(Vector3(p.x, 0.002f, p.z))
                 components.set(CollisionComponent(listOf(r.padShape), r.physics))
                 components.set(InteractableComponent())
                 components.set(HoverEffectComponent())
             }
+            // visible marker under the collider: the system hover is drawn on this mesh (an invisible pad shows nothing)
+            ModelEntity(r.padDot, if (Terrain.isRiver(sq)) r.padDotWater else r.padDotLand).apply {
+                setName(BoardNames.dot(sq))
+                transform().setPosition(Vector3(0f, markY(sq) + 0.0012f - 0.002f, 0f))
+                    .setQuaternion(Quat(Vector3(1f, 0f, 0f), (-PI / 2).toFloat()))
+                pad.addChild(this)
+            }
             boardRoot.addChild(pad)
-            pads["sq:$sq"] = sq
+            pads[BoardNames.square(sq)] = sq
         }
         // coordinates on the soil border: files along the near edge, ranks along the left edge
         // files along the far border: the seat card in front would hide a near-border strip from the seat
@@ -207,10 +219,12 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             val base = baseModel!!.let { if (id == 0) it else it.clone(Entity.CloneOptions(true, false)) } ?: continue
             base.setName("base:$id")
             pv.base = base
-            pv.holder.addChild(base)
+            pv.vis.addChild(base)
             paintBase(pv, r)
             val h = BoardLayout.pieceColliderHeight(id)
             pv.hit.transform().setPosition(Vector3(0f, h / 2f, 0f))
+            pv.vis.transform().setPosition(Vector3(0f, -h / 2f, 0f))
+            pv.hit.addChild(pv.vis)
             pv.hit.components.set(CollisionComponent(listOf(r.pieceShape.getValue(Pieces.animal(id))), r.physics))
             pv.hit.components.set(InteractableComponent())
             pv.hit.components.set(HoverEffectComponent())
@@ -244,7 +258,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             model.transform().setPosition(Vector3(0f, BoardLayout.BASE_H, 0f))
             runCatching { model.components.set(GroundShadowComponent(true, false)) }
             pv.animal = model
-            pv.holder.addChild(model)
+            pv.vis.addChild(model)
         }
         log("ANIMALS attached ${animalModels.size} models")
     }
@@ -343,7 +357,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             val k = trayIndex.getOrDefault(capturer, 0)
             trayIndex[capturer] = k + 1
             pv.inTray = true
-            pv.hit.enabled = false
+            setHittable(pv, false)
             pv.holder.enabled = true
             pv.glideTo = null
             pv.place(BoardLayout.traySlot(capturer, k), Quat(Vector3(0f, 1f, 0f), PI.toFloat()), BoardLayout.TRAY_SCALE)
@@ -355,7 +369,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             if (sq < 0) { pv.holder.enabled = false; continue }
             val side = Pieces.side(id)
             pv.inTray = false
-            pv.hit.enabled = true
+            setHittable(pv, true)
             val trapped = BoardLayout.inEnemyTrap(sq, side)
             if (trapped != pv.trapped) {
                 pv.trapped = trapped
@@ -426,7 +440,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
                     val capturer = vSide.other
                     val k = (s.game?.captured?.count { Pieces.side(it) == vSide } ?: 1) - 1
                     victim.inTray = true
-                    victim.hit.enabled = false
+                    setHittable(victim, false)
                     victim.place(BoardLayout.traySlot(capturer, k.coerceAtLeast(0)), Quat(Vector3(0f, 1f, 0f), PI.toFloat()), BoardLayout.TRAY_SCALE)
                 })
             }
@@ -490,7 +504,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
                 for (m in s.targets) when {
                     m.isJump -> take("jump", r.markCell, r.jumpFrame, m.to, 0.0005f)
                     m.captured >= 0 -> take("cap", r.markCell, r.captureFrame, m.to, 0.0005f)
-                    else -> take("dot", r.markDot, r.legalDot, m.to, 0.0005f)
+                    else -> take("dot", r.markDot, r.legalDot, m.to, 0.0019f)
                 }
                 for (sq in s.blockers) {
                     // a red cross standing over the rat's head, facing the user
@@ -554,6 +568,27 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
     private var hoverSq = -1
     private var hoverAge = 0f
 
+    /** No exit event is guaranteed: hold the frame 1.5 s after the last hover (template "Hover 持续"), a new target moves it at once. */
+    private val HOVER_HOLD = 1.5f
+
+    private fun setHittable(pv: PieceView, on: Boolean) {
+        if (pv.hittable == on) return
+        pv.hittable = on
+        val r = res ?: return
+        if (on) pv.hit.components.set(CollisionComponent(listOf(r.pieceShape.getValue(Pieces.animal(pv.id))), r.physics))
+        else pv.hit.components.remove(CollisionComponent::class.java)
+    }
+
+    /** Debug replay (v0.1.4): the real scene entities a ray can land on for [sq] -- pad marker, and the piece's deepest mesh. */
+    fun replayEntities(sq: Int, pos: Position?): List<Entity> {
+        val out = ArrayList<Entity>()
+        fun deepest(e: Entity): Entity { var x = e; while (x.getChildren().iterator().hasNext()) x = x.getChildren().first(); return x }
+        boardRoot.getChildren().firstOrNull { it.getName() == BoardNames.square(sq) }?.let { pad -> out += pad; pad.getChildren().firstOrNull()?.let { out += it } }
+        val id = pos?.at(sq) ?: -1
+        pieces.getOrNull(id)?.let { pv -> out += pv.hit; pv.animal?.let { out += deepest(it) }; pv.base?.let { out += deepest(it) } }
+        return out
+    }
+
     fun setHover(sq: Int) {
         hoverAge = 0f
         if (sq == hoverSq) return
@@ -588,7 +623,7 @@ internal class BoardScene(private val onAnimationDone: (Int) -> Unit, private va
             pv.holder.transform().setPosition(v(p))
             if (pv.glideT >= 1f) pv.glideTo = null
         }
-        if (hoverSq >= 0) { hoverAge += step; if (hoverAge > 0.25f) setHover(-1) }
+        if (hoverSq >= 0) { hoverAge += step; if (hoverAge > HOVER_HOLD) setHover(-1) }
         // ripple: expand and fade over 400 ms
         if (rippleT >= 0f) {
             rippleT += step

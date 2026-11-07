@@ -22,7 +22,7 @@ import io.embodit.junglechess.ui.window.WindowCtl
  * tab play|new|rules|settings | rulesdone | continue | confirm resign|restart|exit|none | resign
  * setup <63 chars + ' r|b'> [red|blue] | lang system|zh|en | sound on|off | volume 0-2 | reduced on|off | lit on|off
  * pause on|off (freeze animations for a screenshot) | ftest on|off | light <intensity> | window open|recall
- * state | dump
+ * state | dump | replay <square> [hand-ray|eye-hand|controller] (real entities -> template listener)
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -73,6 +73,25 @@ class DebugCommandReceiver : BroadcastReceiver() {
                     "settings=${s.settings} window=${WindowCtl.controlOpen} legal=${g?.let { JungleRules.allLegalMoves(it.position).size }}")
             }
             "dump" -> Log.i(TAG, "DUMP ${DebugHooks.scene?.dump()}")
+            // replay <square> [src]: resolve the real scene entities a ray lands on for that square (pad, marker,
+            // piece collider, deepest animal / base mesh) with the template's resolveUp, then feed the deepest one
+            // to the same BoardInputListener.onTap the template calls -- not the controller shortcut above.
+            "replay" -> {
+                val scene = DebugHooks.scene; val input = DebugHooks.input
+                val target = sq(1)
+                if (scene == null || input == null || target < 0) { Log.w(TAG, "REPLAY not ready"); return }
+                val src = io.embodit.junglechess.ui.board.input.InputSource.entries.firstOrNull { it.label == a.getOrNull(2) }
+                    ?: io.embodit.junglechess.ui.board.input.InputSource.HAND_RAY
+                val ents = scene.replayEntities(target, c.state.value.game?.position)
+                var last: io.embodit.junglechess.ui.board.BoardTarget? = null
+                for (e in ents) {
+                    val (t, path) = io.embodit.junglechess.ui.board.input.resolveUp(e, io.embodit.junglechess.ui.board.BoardTargets)
+                    val s = io.embodit.junglechess.ui.board.BoardTargets.squareFor(t, c.state.value.game?.position) { -1 }
+                    io.embodit.junglechess.ui.board.input.BoardInputLog.write(TAG, "REPLAY ${a[1]} entity=${e.getName()} hit=$t path=$path -> square=${if (s >= 0) Sq.name(s) else "-"}")
+                    last = t
+                }
+                android.os.Handler(android.os.Looper.getMainLooper()).post { input.onTap(last, src, null) }
+            }
             else -> Log.w(TAG, "CMD unknown $raw")
         }
     }

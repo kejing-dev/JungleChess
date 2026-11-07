@@ -59,7 +59,7 @@ function write(name, x) {
   console.log(`${name.padEnd(16)} ${(y.length / RATE).toFixed(2)} s  peak ${peak.toFixed(1)} dBFS  rms ${rms.toFixed(1)} dBFS`);
 }
 
-write('select', lowpass(wood(880, 0.12, 40), 3500));
+// select: silent by default (D51), no file
 // v0.1.3: place comes from Kenney CC0 (cc0sounds.mjs)
 // v0.1.3: place_2 comes from Kenney CC0 (cc0sounds.mjs)
 // v0.1.3: place_3 comes from Kenney CC0 (cc0sounds.mjs)

@@ -39,6 +39,7 @@ internal class SceneResources private constructor() {
     val pieceShape = HashMap<Animal, ShapeResource>()
 
     lateinit var markDot: MeshResource
+    lateinit var padDot: MeshResource
     lateinit var markCell: MeshResource
     lateinit var markRing: MeshResource
     lateinit var markCross: MeshResource
@@ -60,6 +61,8 @@ internal class SceneResources private constructor() {
     lateinit var litRing: Material
     lateinit var selRing: Material
     lateinit var hoverFrame: Material
+    lateinit var padDotLand: Material
+    lateinit var padDotWater: Material
     lateinit var crossMat: Material
     lateinit var ripple: UnlitMaterial
     lateinit var filesMat: Material
@@ -129,6 +132,7 @@ internal class SceneResources private constructor() {
                 async(Dispatchers.IO) { MeshResource.createPlane(0.42f, 0.03f, 0f) },
                 async(Dispatchers.IO) { MeshResource.createPlane(0.03f, 0.54f, 0f) },
                 async(Dispatchers.IO) { MeshResource.createPlane(BoardLayout.TAG_W, BoardLayout.TAG_H, 0.002f) },
+                async(Dispatchers.IO) { MeshResource.createPlane(0.009f, 0.009f, 0.0045f) },
             )
             val tagJobs = (0 until Pieces.COUNT).map { id -> id to async(Dispatchers.IO) { TextureResource.create(BoardTextures.rankTag(id)) } }
             val shapeJob = async(Dispatchers.IO) {
@@ -149,6 +153,7 @@ internal class SceneResources private constructor() {
             shapes.forEach { (a, s) -> r.pieceShape[a] = s.keep() }
             r.physics = PhysicsMaterialResource().keep()
             r.tagMesh = m[7].keep()
+            r.padDot = m[8].keep()
             for ((id, d) in tagJobs) {
                 val tex = d.await().keep()
                 r.rankTags[id] = PhysicallyBasedMaterial.create(BlendingMode.MASKED).apply {
@@ -177,6 +182,8 @@ internal class SceneResources private constructor() {
             r.teamBody[Side.RED] = pbr(rgb(0xB5452E), 0.55f).keep()
             r.teamBody[Side.BLUE] = pbr(rgb(0x2F5F9E), 0.55f).keep()
             r.ringGold = pbr(rgb(0xD9B45A), 0.45f, glow = 0.15f).keep()
+            r.padDotLand = pbr(rgb(0x4A6E33), 0.85f, glow = 0.02f).keep() // turf green, one shade darker
+            r.padDotWater = pbr(rgb(0x2C5F86), 0.4f, glow = 0.02f).keep() // river blue, one shade darker
             r.ringGrey = pbr(rgb(0x6E6E6A), 0.8f, glow = 0.02f).keep()
             val (labels, plate) = labelJob.await()
             r.labels = labels.onEach { it.value.keep() }

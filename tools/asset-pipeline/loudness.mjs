@@ -18,10 +18,10 @@ const at = (name, t) => { const x = read(name); const o = Math.floor(t * RATE); 
 const animals = ['rat', 'cat', 'dog', 'wolf', 'leopard', 'tiger', 'lion', 'elephant'];
 let t = 0.3, k = 0;
 while (t < LEN - 1.5) {
-  at('select', t);                                     // pinch a piece
+  // select is silent (D51)
   const human = t + 0.9;                               // pinch a lit square
   if (k % 7 === 4) at('jump', human); else if (k % 9 === 6) at('splash', human); else at(['place', 'place_2', 'place_3'][k % 3], human);
-  if (k % 4 === 2) at('cry_' + animals[k % 8], human + 0.13);
+  if (k % 4 === 2) at('cry_' + animals[k % 8] + ['', '_2', '_3'][k % 3], human + 0.13);
   const ai = human + 0.22 + 0.4;                       // walk + minimum AI think
   at(['place_2', 'place_3', 'place'][k % 3], ai);
   if (k % 6 === 5) at('alarm', ai + 0.25);
