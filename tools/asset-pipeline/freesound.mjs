@@ -10,8 +10,9 @@ const [, , dir, out, srcJson] = process.argv;
 const RATE = 22050;
 // event -> [window s, low-pass Hz, peak dBFS, how many variants]
 const SPEC = {
-  rat: [0.45, 7000, -2, 3], cat: [0.7, 6000, -1.5, 3], dog: [0.5, 5000, -1.5, 3], wolf: [0.8, 4500, -2, 3],
-  leopard: [0.7, 4000, -2, 3], tiger: [0.8, 4000, -2.5, 3], lion: [0.8, 4000, -2.5, 3], elephant: [0.8, 4500, -2.5, 3],
+  // cries land ~130 ms after the move's wood hit and overlap it: peaks kept 2–3 dB under the impacts, body via soft-limit
+  rat: [0.45, 7000, -4, 3], cat: [0.7, 6000, -3.5, 3], dog: [0.5, 5000, -3.5, 3], wolf: [0.8, 4500, -4, 3],
+  leopard: [0.7, 4000, -4, 3], tiger: [0.8, 4000, -4.5, 3], lion: [0.8, 4000, -4.5, 3], elephant: [0.8, 4500, -4.5, 3],
   splash: [0.55, 6000, -1.5, 3], drip: [0.3, 6000, -2, 3],
 };
 const urls = Object.fromEntries(fs.readFileSync(path.join(dir, 'LICENSE.txt'), 'utf8').split('\n')

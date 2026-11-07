@@ -46,8 +46,8 @@ function normalise(x0, db = PEAK_DB) {
   const fade = N(0.01);
   return x.map((v, i) => v * k * Math.min(1, (x.length - i) / fade));
 }
-function write(name, x) {
-  const y = normalise(x);
+function write(name, x, db = PEAK_DB) {
+  const y = normalise(x, db);
   const buf = Buffer.alloc(44 + y.length * 2);
   buf.write('RIFF', 0); buf.writeUInt32LE(36 + y.length * 2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12);
   buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(RATE, 24);
@@ -63,16 +63,9 @@ function write(name, x) {
 // v0.1.3: place comes from Kenney CC0 (cc0sounds.mjs)
 // v0.1.3: place_2 comes from Kenney CC0 (cc0sounds.mjs)
 // v0.1.3: place_3 comes from Kenney CC0 (cc0sounds.mjs)
-// eight "wooden fish" knocks, rank 1 (rat) highest -> 8 (elephant) lowest: the capture cry fallback of the design
-const animals = ['rat', 'cat', 'dog', 'wolf', 'leopard', 'tiger', 'lion', 'elephant'];
-animals.forEach((a, i) => {
-  const f = 900 * Math.pow(0.82, i);
-  write(`cry_${a}`, lowpass(mix([wood(f, 0.32, 14, [[1, 1], [1.5, 0.25], [2.9, 0.1]]), 0, 1], [wood(f * 1.12, 0.22, 18), 0.09, 0.55]), 3000));
-});
+// v0.1.4: cry_* / splash / drip come from freesound CC0 recordings (freesound.mjs) -- do not synthesise them here
 // v0.1.3: topple comes from Kenney CC0 (cc0sounds.mjs)
 // v0.1.3: jump comes from Kenney CC0 (cc0sounds.mjs)
-write('splash', lowpass(mix([noise(0.35, (t) => Math.exp(-9 * t) * Math.min(1, t / 0.01)), 0, 0.8], [tone(500, 220, 0.12, (t) => Math.exp(-25 * t)), 0, 0.5]), 2200));
-write('drip', lowpass(mix([tone(1400, 2300, 0.06, (t) => Math.exp(-50 * t)), 0, 1], [tone(1200, 2000, 0.05, (t) => Math.exp(-60 * t)), 0.12, 0.6]), 3000));
 // v0.1.3: trap comes from Kenney CC0 (cc0sounds.mjs)
 write('illegal', lowpass(mix([wood(220, 0.14, 45, [[1, 1], [1.9, 0.4]]), 0, 1], [thud(110, 0.1), 0, 0.6]), 1500));
 write('alarm', mix([thud(75, 0.35), 0, 1], [thud(75, 0.35), 0.28, 0.9]));

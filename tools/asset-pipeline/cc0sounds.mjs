@@ -41,7 +41,7 @@ for (const [event, files] of Object.entries(MAP)) {
     y = y.map((s, i) => s * k * Math.min(1, (y.length - i) / fade));
     // impacts are all crest: a gentle tanh soft-limit (drive <= 2) gives the body more weight at the same peak (B20 loudness)
     { const ceil = Math.pow(10, PEAK_DB / 20), r0 = 20 * Math.log10(Math.sqrt(y.reduce((s, q) => s + q * q, 0) / y.length));
-      if (r0 < -16) { const d = Math.min(2, Math.pow(10, (-16 - r0) / 20)); y = y.map((s) => ceil * Math.tanh(s * d / ceil) / Math.tanh(d)); } }
+      if (r0 < -12) { const d = Math.min(3, Math.pow(10, (-12 - r0) / 20)); y = y.map((s) => ceil * Math.tanh(s * d / ceil) / Math.tanh(d)); } }
     const name = v === 0 ? event : `${event}_${v + 1}`;
     wav(path.join(out, `${name}.wav`), y);
     const rms = 20 * Math.log10(Math.sqrt(y.reduce((s, q) => s + q * q, 0) / y.length));

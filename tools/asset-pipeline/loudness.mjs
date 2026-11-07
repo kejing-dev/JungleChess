@@ -30,7 +30,11 @@ while (t < LEN - 1.5) {
 }
 let peak = 0, sum = 0;
 for (const v of mix) { peak = Math.max(peak, Math.abs(v)); sum += v * v; }
-const lim = peak > 0.89 ? 0.89 / peak : 1; // what the app would clip anyway; keep the file honest at <= -1 dBFS
+// SoundPool sums and clips per sample; model that as a per-sample clamp at -1 dBFS (a whole-file gain let one overlap
+// of two hits pull all 30 s down by 1 dB). The count of clamped samples is printed so the evidence stays honest.
+const CEIL = 0.89, lim = 1; let clamped = 0;
+for (let i = 0; i < mix.length; i++) if (Math.abs(mix[i]) > CEIL) { mix[i] = Math.sign(mix[i]) * CEIL; clamped++; }
+peak = Math.min(peak, CEIL); sum = 0; for (const v of mix) sum += v * v;
 const buf = Buffer.alloc(44 + mix.length * 2);
 buf.write('RIFF', 0); buf.writeUInt32LE(36 + mix.length * 2, 4); buf.write('WAVE', 8); buf.write('fmt ', 12);
 buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(RATE, 24);
@@ -38,4 +42,4 @@ buf.writeUInt32LE(RATE * 2, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16,
 for (let i = 0; i < mix.length; i++) buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, mix[i] * lim)) * 32767), 44 + i * 2);
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, buf);
-console.log(`${out}: ${LEN} s, peak ${(20 * Math.log10(peak * lim)).toFixed(1)} dBFS, rms ${(20 * Math.log10(Math.sqrt(sum / mix.length) * lim)).toFixed(1)} dBFS, limiter ${lim < 1 ? (20 * Math.log10(lim)).toFixed(1) + ' dB' : 'off'}`);
+console.log(`${out}: ${LEN} s, peak ${(20 * Math.log10(peak * lim)).toFixed(1)} dBFS, rms ${(20 * Math.log10(Math.sqrt(sum / mix.length) * lim)).toFixed(1)} dBFS, clamped ${clamped} samples (${(clamped / RATE * 1000).toFixed(1)} ms)`);
